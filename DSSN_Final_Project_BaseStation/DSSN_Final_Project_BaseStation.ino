@@ -504,15 +504,10 @@ void sendMessage(message_S* msgToSend, bool sendToMatlab)
   }
   else
   {
-    Serial.print("Sending... ");
-    Serial.println((sizeof(uint8_t) + numBytesInPayload));
-    uint8_t msg[3] = {128,2,3};
-    debugMessage(msgToSend);
-    Serial.print("\n");
 #ifdef USE_RF24_RADIO
     radio.stopListening();
-    radio.write((uint8_t*)&msg,2);
-//    radio.write((uint8_t*)msgToSend, (sizeof(uint8_t) + numBytesInPayload));
+   
+    radio.write((uint8_t*)msgToSend, (sizeof(uint8_t) + numBytesInPayload));
     radio.startListening();
 #else
     // Send the message with the appropriate number of bytes
