@@ -7,7 +7,7 @@
 // Uncomment this define to use this software with the nrf24l01 radios
 #define USE_RF24_RADIO
 // Uncomment to compile serial debug statements
-#define SERIAL_DEBUG
+//#define SERIAL_DEBUG
 
 #ifdef USE_RF24_RADIO
 #include "RF24.h"
