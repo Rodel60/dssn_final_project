@@ -7,7 +7,7 @@
 // Uncomment this define to use this software with the nrf24l01 radios
 #define USE_RF24_RADIO
 // Uncomment to compile serial debug statements
-#define SERIAL_DEBUG
+//#define SERIAL_DEBUG
 
 #ifdef USE_RF24_RADIO
 #include "RF24.h"
@@ -491,7 +491,9 @@ void sendMessage(message_S* msgToSend, bool sendToMatlab)
     switch (getMessageIdFromHeader(msgToSend->header))
     {
       case STARTUP_RSP:
+        #ifdef SERIAL_DEBUG
         Serial.println(F("Transmitting STARTUP_RSP to MATLAB"));
+        #endif
         sRspPayload = (startup_rsp_payload_S*) msgToSend->payload;
         transmitBuffer[0] = '2'; // Startup response message type
         transmitBuffer[1] = ',';
@@ -805,8 +807,9 @@ void loop()
       {
         // Jump to startup mode
         currentState = STARTUP_MODE;
+        #ifdef SERIAL_DEBUG
         Serial.println(F("Received startup_msg, transitioning to STARTUP_MODE"));
-      
+        #endif
         // Received startup message intended for this base node
 //        msgIncomingPayloads.startupMsgPayload->target_node = 1; // Should be second and last id in array
 //        msgIncomingPayloads.startupMsgPayload->node_path[0] = MATLAB_NODE_ID;
@@ -973,7 +976,9 @@ void loop()
         startListeningTimestamp = millis();
         while ((uint32_t)(millis() - startListeningTimestamp) < 5000) // Spends 5 seconds listening for a response
         {
+          #ifdef SERIAL_DEBUG
           Serial.println(F("Radio silence"));
+          #endif
           // Wait for response from discovered neighbor, resend neighbor query if necessary
           if (radio.available())
           {
@@ -1059,7 +1064,9 @@ void loop()
       
       // ALL done send STATUP RESPONSE (complete) message, "pass the token back to the base"
       currentState = NORMAL_MODE;
+      #ifdef SERIAL_DEBUG
       Serial.println(F("Transitioning to NORMAL mode"));
+      #endif
   }
   break;
 
@@ -1167,7 +1174,9 @@ case NORMAL_MODE:
           // TODO Process the request
           if (msgIncomingPayloads.dataQueryPayload->request == 1)
           {
+            #ifdef SERIAL_DEBUG
             Serial.println("Processing generic request 1!");
+            #endif
           }
           // TODO Send data back
         }
