@@ -23,7 +23,7 @@ RF24 radio(8, 7);
 // Unique node identifier
 // NOTE: Start incrementing the node id from 1, so 0 represents no node
 // Worker nodes numbered 1 to 7
-#define NODE_ID 3
+#define NODE_ID 5
 
 // Maximum number of nodes in a message path
 #define MAX_NODE_PATH 9
@@ -412,7 +412,7 @@ void parseHeader(message_S* receivedMsg, message_id_E* messageType, uint8_t* txN
 bool waitForAck(message_S* messageToSend, message_id_E ackToReceive, uint8_t numRetries, uint32_t timeBetweenRetries)
 {
   uint8_t numRetriesSent = 0;
-  uint16_t randTime = random(256); // Wait a random amount of time 0-.25sec
+  uint16_t randTime = random(500); // Wait a random amount of time 0-.25sec
   uint32_t startTimeStamp = 0; // Timer to indicate when to retry the message
   delay(randTime);
 #ifdef SERIAL_DEBUG
@@ -637,7 +637,7 @@ void loop()
   static uint32_t startListeningTimestamp = 0; // When this node began listening for responses
   static uint32_t listenMaxTime = 5000; // Time we should spend listening for responses
   static uint8_t lastMsgReversedNodePath[MAX_NODE_PATH] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  uint8_t receivedMsgNodeId = 0; // The node id of the node that sent the message
+  static uint8_t receivedMsgNodeId = 0; // The node id of the node that sent the message
   static message_S msgReceived; // Initialize an empty message put the received data in
   static message_S msgResponse; // Initialize an empty message
   static message_S msgAck; // Initialize an empty ack
@@ -645,6 +645,11 @@ void loop()
   static neighbor_list_S nList;
   static bool receivedNeighborQuery = false;
   uint8_t powerLevelToReachNode = 0;
+  
+//  uint8_t outList[9] = {9,8,5,2,0,0,0,0,0};
+//  uint8_t 
+//  
+//reverseNodeList(uint8_t* origNodeList, uint8_t* reversedNodeList, uint8_t listSize)
 
   // This is the state machine for the node
   switch (currentState)
@@ -805,7 +810,7 @@ void loop()
 
           // Broadcast neighbor query message with size of header
           sendMessage(&msgResponse);
-          delay(100);
+          delay(300);
         } // End of broadcasting NEIGHBOR_QUERY at different power levels
 
 #ifdef SERIAL_DEBUG
@@ -1025,7 +1030,7 @@ void loop()
             else // This message should be forwarded
             {
 #ifdef SERIAL_DEBUG
-              Serial.print("Forwarding message to node ");
+              Serial.print("DQ_Forwarding message to node ");
               Serial.println(msgIncomingPayloads.dataQueryPayload.node_path[msgIncomingPayloads.dataQueryPayload.target_node + 1], DEC);
 #endif
               // Check that the next hop node has a valid id
@@ -1067,7 +1072,7 @@ void loop()
           else if (messageType == DATA_RSP)
           {
 #ifdef SERIAL_DEBUG
-            Serial.print("Forwarding message to node ");
+            Serial.print("DR_Forwarding message to node ");
             Serial.println(msgIncomingPayloads.dataRspPayload.node_path[msgIncomingPayloads.dataRspPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id
@@ -1131,7 +1136,7 @@ void loop()
             }
             
 #ifdef SERIAL_DEBUG
-            Serial.print("Forwarding message to node ");
+            Serial.print("S_Forwarding message to node ");
             Serial.println(msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id
@@ -1172,10 +1177,23 @@ void loop()
           else if (messageType == STARTUP_RSP)
           {
 //            fixList(uint8_t* origList)
+              debugMessage(&currentMessage);
 #ifdef SERIAL_DEBUG
-            Serial.print("Forwarding message to node ");
+            Serial.print("SR_Forwarding message to node ");
             Serial.println(msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node + 1], DEC);
-#endif
+#endif      
+            while(msgIncomingPayloads.startupRspPayload.target_node+1 < MAX_NODE_PATH)
+            {
+              if (msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node+1] == 0)
+              {
+                msgIncomingPayloads.startupRspPayload.target_node += 1;
+              }
+              else
+              {
+                break;
+              }
+            }
+            
             // Check that the next hop node has a valid id
             if (((msgIncomingPayloads.startupRspPayload.target_node + 1) >= MAX_NODE_PATH) ||
                 (msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node + 1] == 0))
