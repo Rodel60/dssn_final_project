@@ -412,7 +412,7 @@ void parseHeader(message_S* receivedMsg, message_id_E* messageType, uint8_t* txN
 bool waitForAck(message_S* messageToSend, message_id_E ackToReceive, uint8_t numRetries, uint32_t timeBetweenRetries)
 {
   uint8_t numRetriesSent = 0;
-  uint16_t randTime = random(2000); // Wait a random amount of time 0-.25sec
+  uint16_t randTime = random(256); // Wait a random amount of time 0-.25sec
   uint32_t startTimeStamp = 0; // Timer to indicate when to retry the message
   delay(randTime);
 #ifdef SERIAL_DEBUG
@@ -812,8 +812,8 @@ void loop()
         Serial.println(F("Listening for neighbor responses..."));
 #endif
         // Listen for NEIGHBOR_RESPONSEs for a fixed time interval
-        startListeningTimestamp = micros();
-        while ((uint32_t)(micros() - startListeningTimestamp) < listenMaxTime) // Spends 5 seconds listening for a response
+        startListeningTimestamp = millis();
+        while ((uint32_t)(millis() - startListeningTimestamp) < listenMaxTime) // Spends 5 seconds listening for a response
         {
           // Wait for response from discovered neighbor, resend neighbor query if necessary
           if (radio.available())
