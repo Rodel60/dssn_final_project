@@ -35,9 +35,15 @@ RF24 radio(8, 7);
 #define EMPTY_MSG_PAYLOAD 0U
 
 // Length of the application communication buffer is equal to the maximum message length of 28 bytes
-#define COMM_BUFFER_SIZE 28U
+//#define COMM_BUFFER_SIZE 28U
 
-// Declare channel ID
+// Main Channel ID
+#define MAIN_CHANNEL 76
+
+// ACK Channel ID
+#define ACK_CHANNEL 100
+
+// Declare pipe ID
 const uint64_t pipe = 0xE8E8F0F0E1LL;
 
 // Declare message properties
@@ -95,7 +101,7 @@ typedef struct __attribute__((__packed__))
 {
   uint8_t target_node;
   uint8_t node_path[MAX_NODE_PATH];
-  neighbor_list_S neighbor_list;
+  neighbor_list_S* neighbor_list;
 } startup_rsp_payload_S;
 
 // DATA_QUERY Payload
@@ -173,8 +179,6 @@ typedef enum
 
 // -------------- GLOBAL VARIABLES --------------
 // Initialize the node id queue
-uint8_t nList_idx = 0;
-neighbor_list_S nList; // TODO move this to the main loop
 uint8_t payloadDataBuffer[32]; // Max serial buffer data size
 
 // -------------- FUNCTIONS --------------
@@ -379,9 +383,9 @@ static void debugMessage(message_S* msgToDebug)
       for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
       {
         Serial.print("(");
-        Serial.print(debugMsgPayloads.startupRspPayload->neighbor_list.node_ids[idx], DEC);
+        Serial.print(debugMsgPayloads.startupRspPayload->neighbor_list->node_ids[idx], DEC);
         Serial.print(",");
-        Serial.print(debugMsgPayloads.startupRspPayload->neighbor_list.edge_costs[idx], DEC);
+        Serial.print(debugMsgPayloads.startupRspPayload->neighbor_list->edge_costs[idx], DEC);
         ((idx == MAX_NODE_PATH - 1) ? Serial.println(")") : Serial.print(")"));
       }
       break;
@@ -593,7 +597,10 @@ void setup()
 
   // Set the PA Level low to prevent power supply related issues, and the likelihood of close proximity of the devices. RF24_PA_MAX is default.
   radio.setPALevel(RF24_PA_MIN);
-
+  
+//  radio.setChannel(MAIN_CHANNEL); // Start on the main channel
+//  radio.setAutoAck(false); // disable auto acks 
+  
   radio.openWritingPipe(pipe);
   radio.openReadingPipe(1, pipe);
 
@@ -601,7 +608,7 @@ void setup()
   radio.startListening();
 #endif
 
-  Serial.begin(9600); // This is a temp replacement for the radio interface
+  Serial.begin(115200); // This is a temp replacement for the radio interface
 }
 
 void loop()
@@ -618,6 +625,8 @@ void loop()
   message_S msgReceived; // Initialize an empty message put the received data in
   message_S msgResponse; // Initialize an empty message
   message_S msgAck; // Initialize an empty ack
+  static uint8_t nList_idx = 0;
+  static neighbor_list_S nList;
   static bool receivedNeighborQuery = false;
   uint8_t powerLevelToReachNode = 0;
 
@@ -641,7 +650,7 @@ void loop()
           if (messageType == NEIGHBOR_QUERY)
           {
 #ifdef SERIAL_DEBUG
-            Serial.println("Received NEIGHBOR_QUERY message");
+            Serial.println(F("Received NEIGHBOR_QUERY message"));
 #endif
             // Parse the payload into the incoming payloads union structure
             parsePayload(&msgReceived, &msgIncomingPayloads);
@@ -842,9 +851,8 @@ void loop()
         // Buidling payload: Save the reversed copy of the node_path that the original startup message contained
         memcpy(&(msgOutgoingPayloads.startupRspPayload->node_path), &lastMsgReversedNodePath, MAX_NODE_PATH);
 
-        // Building payload: Send in this node's neighbor list
-        memcpy(&(msgOutgoingPayloads.startupRspPayload->neighbor_list), &nList, sizeof(neighbor_list_S));
-
+        msgOutgoingPayloads.startupRspPayload->neighbor_list = &nList; // Save the neighbor list in the startup response payload
+        
         // Build the startup response message
         buildMessage(&msgResponse, NODE_ID, STARTUP_RSP, (uint8_t*)(msgOutgoingPayloads.startupRspPayload));
 
@@ -1063,6 +1071,29 @@ void loop()
           }
           else if (messageType == STARTUP_MSG)
           {
+
+            // Parse the payload into the incoming payloads union structure
+            parsePayload(&currentMessage, &msgIncomingPayloads);
+#ifdef SERIAL_DEBUG
+            Serial.print("STARTUP_MSG received,");
+#endif
+            // Check if this node is the message's intended destination and that there is no next hop, indicated by the next node in the array being 0
+            if ((msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node] == NODE_ID) &&
+                ((msgIncomingPayloads.startupMsgPayload->target_node + 1 >= MAX_NODE_PATH) ||
+                 (msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1] == 0)))
+            {
+#ifdef SERIAL_DEBUG
+              Serial.println(" transitioning to startup mode...");
+#endif
+
+              // Store the reversed node path for when we need to send the startup response
+              reverseNodeList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload->node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
+
+              // This node is the end of the node path
+              currentState = STARTUP_MODE;
+              break;
+            }
+            
 #ifdef SERIAL_DEBUG
             Serial.print("Forwarding message to node ");
             Serial.println(msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1], DEC);
