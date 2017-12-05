@@ -407,7 +407,7 @@ void parseHeader(message_S * receivedMsg, message_id_E * messageType, uint8_t* t
 bool waitForAck(message_S * messageToSend, message_id_E ackToReceive, uint8_t numRetries, uint32_t timeBetweenRetries)
 {
   uint8_t numRetriesSent = 0;
-  uint16_t randTime = random(256); // Wait a random amount of time 0-.25sec
+  uint16_t randTime = random(800); // Wait a random amount of time 0-.25sec
   uint32_t startTimeStamp = 0; // Timer to indicate when to retry the message
   delay(randTime);
 #ifdef SERIAL_DEBUG
@@ -461,17 +461,27 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
     startup_rsp_payload_S* sRspPayload;
     data_rsp_payload_S* dRspPayload;
     error_msg_payload_S* errorMsgPayload;
-
+    
     switch (getMessageIdFromHeader(msgToSend->header))
     {
       case STARTUP_RSP:
 #ifdef SERIAL_DEBUG
         Serial.println(F("Transmitting STARTUP_RSP to MATLAB"));
-#endif
+#endif  
+        debugMessage(msgToSend);
         sRspPayload = (startup_rsp_payload_S*) msgToSend->payload;
+//        fixList((uint8_t*)&(sRspPayload->node_path[0]));
         transmitBuffer[0] = '2'; // Startup response message type
         transmitBuffer[1] = ',';
-        transmitBuffer[2] = (sRspPayload->node_path[0] + '0');
+        if (sRspPayload->node_path[0] == 0)
+        {
+          transmitBuffer[2] = (NODE_ID + '0');
+        }
+        else
+        {
+          transmitBuffer[2] = (sRspPayload->node_path[0] + '0');
+        }
+        
 
         // Neighbor list and pointer
         for (uint8_t idx = 0; idx < (MAX_NUM_NEIGHBORS * 4); idx += 4)
@@ -989,7 +999,7 @@ void loop()
 
           // Broadcast neighbor query message with size of header
           sendMessage(&msgResponse, false);
-          delay(100);
+          delay(500);
         } // End of broadcasting NEIGHBOR_QUERY at different power levels
 
 #ifdef SERIAL_DEBUG
@@ -998,7 +1008,7 @@ void loop()
 
         // Listen for NEIGHBOR_RESPONSEs for a fixed time interval
         startListeningTimestamp = millis();
-        while ((uint32_t)(millis() - startListeningTimestamp) < 3000) // Spends 5 seconds listening for a response
+        while ((uint32_t)(millis() - startListeningTimestamp) < 4000) // Spends 5 seconds listening for a response
         {
 #ifdef SERIAL_DEBUG
 //          Serial.println(F("Radio silence"));

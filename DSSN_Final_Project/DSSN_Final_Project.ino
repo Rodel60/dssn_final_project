@@ -23,7 +23,7 @@ RF24 radio(8, 7);
 // Unique node identifier
 // NOTE: Start incrementing the node id from 1, so 0 represents no node
 // Worker nodes numbered 1 to 7
-#define NODE_ID 2
+#define NODE_ID 3
 
 // Maximum number of nodes in a message path
 #define MAX_NODE_PATH 9
