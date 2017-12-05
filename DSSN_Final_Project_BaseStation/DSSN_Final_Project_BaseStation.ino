@@ -671,25 +671,7 @@ void loop()
   uint8_t powerLevelToReachNode = 0;
   uint8_t rxBufferPtr = 0;
   uint8_t lastCharRead = '0';
-  while (1)
-  {
-  // Broadcast query at all four power levels MIN, LOW, HIGH, MAX
-        for (uint8_t powerLevel = 1; powerLevel < 5; ++powerLevel) // 5 is total number of edge costs
-        {
-          msgOutgoingPayloads.nQueryPayload.broadcast_power = powerLevel;
-
-          // Start querying for neighbors, build neighbor query mesage
-          buildMessage(&msgResponse, NODE_ID, NEIGHBOR_QUERY, (uint8_t*)&(msgOutgoingPayloads.nQueryPayload));
-#ifdef SERIAL_DEBUG
-          Serial.print(F("Broadcasting NEIGHBOR_QUERY at power level "));
-          Serial.println(powerLevel);
-#endif
-
-          // Broadcast neighbor query message with size of header
-          sendMessage(&msgResponse, false);
-          delay(1000);
-        } // End of broadcasting NEIGHBOR_QUERY at different power levels
-  }
+  
 
   // Read in current message in the Serial buffer
   if (Serial.available())
@@ -962,7 +944,7 @@ void loop()
 
           // Broadcast neighbor query message with size of header
           sendMessage(&msgResponse, false);
-          delay(1000);
+          delay(100);
         } // End of broadcasting NEIGHBOR_QUERY at different power levels
 
 #ifdef SERIAL_DEBUG
@@ -971,7 +953,7 @@ void loop()
 
         // Listen for NEIGHBOR_RESPONSEs for a fixed time interval
         startListeningTimestamp = millis();
-        while ((uint32_t)(millis() - startListeningTimestamp) < 5000) // Spends 5 seconds listening for a response
+        while ((uint32_t)(millis() - startListeningTimestamp) < 3000) // Spends 5 seconds listening for a response
         {
           #ifdef SERIAL_DEBUG
           Serial.println(F("Radio silence"));
