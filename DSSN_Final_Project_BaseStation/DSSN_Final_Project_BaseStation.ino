@@ -471,7 +471,7 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
         sRspPayload = (startup_rsp_payload_S*) msgToSend->payload;
         transmitBuffer[0] = '2'; // Startup response message type
         transmitBuffer[1] = ',';
-        transmitBuffer[2] = (getNodeIdFromHeader(msgToSend->header) + '0');
+        transmitBuffer[2] = (sRspPayload->node_path[0] + '0');
 
         // Neighbor list and pointer
         for (uint8_t idx = 0; idx < (MAX_NUM_NEIGHBORS * 4); idx += 4)
@@ -488,7 +488,7 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
         dRspPayload = (data_rsp_payload_S*) msgToSend->payload;
         transmitBuffer[0] = '4'; // Data response message type
         transmitBuffer[1] = ',';
-        transmitBuffer[2] = (getNodeIdFromHeader(msgToSend->header) + '0');
+        transmitBuffer[2] = (dRspPayload->node_path[0] + '0');
         transmitBuffer[3] = ',';
         transmitBuffer[4] = dRspPayload->data; // Data
         transmitBuffer[5] = '\n';

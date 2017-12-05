@@ -805,7 +805,7 @@ void loop()
 
           // Broadcast neighbor query message with size of header
           sendMessage(&msgResponse);
-          delay(1000);
+          delay(100);
         } // End of broadcasting NEIGHBOR_QUERY at different power levels
 
 #ifdef SERIAL_DEBUG
@@ -813,7 +813,7 @@ void loop()
 #endif
         // Listen for NEIGHBOR_RESPONSEs for a fixed time interval
         startListeningTimestamp = millis();
-        while ((uint32_t)(millis() - startListeningTimestamp) < listenMaxTime) // Spends 5 seconds listening for a response
+        while ((uint32_t)(millis() - startListeningTimestamp) < 3000) // Spends 5 seconds listening for a response
         {
           // Wait for response from discovered neighbor, resend neighbor query if necessary
           if (radio.available())
@@ -1051,8 +1051,7 @@ void loop()
               else // The node is reachable, forward the message
               {
                 // Set the outgoing message payload equal to the incoming message payload
-                msgOutgoingPayloads.dataQueryPayload = msgIncomingPayloads.dataQueryPayload;
-
+                memcpy((uint8_t*)&(msgOutgoingPayloads.dataQueryPayload), (uint8_t*)&(msgIncomingPayloads.dataQueryPayload), sizeof(data_query_payload_S));
                 // Increment the target node index to the next node
                 ++(msgOutgoingPayloads.dataQueryPayload.target_node);
 
@@ -1094,8 +1093,8 @@ void loop()
             else // The node is reachable, forward the message
             {
               // Set the outgoing message payload equal to the incoming message payload
-              msgOutgoingPayloads.dataRspPayload = msgIncomingPayloads.dataRspPayload;
-
+              memcpy((uint8_t*)&(msgOutgoingPayloads.dataRspPayload), (uint8_t*)&(msgIncomingPayloads.dataRspPayload), sizeof(data_rsp_payload_S));
+              
               // Increment the target node index to the next node
               ++(msgOutgoingPayloads.dataRspPayload.target_node);
 
@@ -1158,7 +1157,7 @@ void loop()
             else // The node is reachable, forward the message
             {
               // Set the outgoing message payload equal to the incoming message payload
-              msgOutgoingPayloads.startupMsgPayload = msgIncomingPayloads.startupMsgPayload;
+              memcpy((uint8_t*)&(msgOutgoingPayloads.startupMsgPayload), (uint8_t*)&(msgIncomingPayloads.startupMsgPayload), sizeof(startup_msg_payload_S));
 
               // Increment the target node index to the next node
               ++(msgOutgoingPayloads.startupMsgPayload.target_node);
