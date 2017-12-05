@@ -7,7 +7,7 @@
 // Uncomment this define to use this software with the nrf24l01 radios
 #define USE_RF24_RADIO
 // Uncomment to compile serial debug statements
-#define SERIAL_DEBUG
+//#define SERIAL_DEBUG
 
 #ifdef USE_RF24_RADIO
 #include "RF24.h"
@@ -989,7 +989,7 @@ void loop()
 
           // Broadcast neighbor query message with size of header
           sendMessage(&msgResponse, false);
-          delay(1000);
+          delay(100);
         } // End of broadcasting NEIGHBOR_QUERY at different power levels
 
 #ifdef SERIAL_DEBUG
@@ -998,7 +998,7 @@ void loop()
 
         // Listen for NEIGHBOR_RESPONSEs for a fixed time interval
         startListeningTimestamp = millis();
-        while ((uint32_t)(millis() - startListeningTimestamp) < 5000) // Spends 5 seconds listening for a response
+        while ((uint32_t)(millis() - startListeningTimestamp) < 3000) // Spends 5 seconds listening for a response
         {
 #ifdef SERIAL_DEBUG
 //          Serial.println(F("Radio silence"));
