@@ -41,7 +41,7 @@ RF24 radio(8, 7);
 #define MAIN_CHANNEL 76
 
 // ACK Channel ID
-#define ACK_CHANNEL 100
+#define ACK_CHANNEL 80
 
 // Declare pipe ID
 const uint64_t pipe = 0xE8E8F0F0E1LL;
@@ -140,30 +140,43 @@ typedef enum
   NORMAL_MODE
 } states_E;
 
-union MsgPayload // Declare a simple union type
+//union MsgPayload // Declare a simple union type
+//{
+//  neighbor_query_payload_S* nQueryPayload;
+//  neighbor_rsp_payload_S* nRspPayload;
+//  neighbor_rsp_ack_payload_S* nRspPayloadAck;
+//  startup_msg_payload_S* startupMsgPayload;
+//  startup_rsp_payload_S* startupRspPayload;
+//  data_query_payload_S* dataQueryPayload;
+//  data_rsp_payload_S* dataRspPayload;
+//  data_rsp_ack_payload_S* dataRspAckPayload;
+//  error_msg_payload_S* errorMsgPayload;
+//};
+
+typedef struct
 {
-  neighbor_query_payload_S* nQueryPayload;
-  neighbor_rsp_payload_S* nRspPayload;
-  neighbor_rsp_ack_payload_S* nRspPayloadAck;
-  startup_msg_payload_S* startupMsgPayload;
-  startup_rsp_payload_S* startupRspPayload;
-  data_query_payload_S* dataQueryPayload;
-  data_rsp_payload_S* dataRspPayload;
-  data_rsp_ack_payload_S* dataRspAckPayload;
-  error_msg_payload_S* errorMsgPayload;
-};
+  neighbor_query_payload_S nQueryPayload;
+  neighbor_rsp_payload_S nRspPayload;
+  neighbor_rsp_ack_payload_S nRspPayloadAck;
+  startup_msg_payload_S startupMsgPayload;
+  startup_rsp_payload_S startupRspPayload;
+  data_query_payload_S dataQueryPayload;
+  data_rsp_payload_S dataRspPayload;
+  data_rsp_ack_payload_S dataRspAckPayload;
+  error_msg_payload_S errorMsgPayload;
+} MsgPayload;
 
 // Message IDs
 typedef enum
 {
   NEIGHBOR_QUERY = 0, // "Hello!"
-  NEIGHBOR_RSP = 1, // Hello I heard you
-  NEIGHBOR_RSP_ACK = 2, // I got your response, no need to resend
-  STARTUP_MSG = 3, // Begin startup
-  STARTUP_RSP = 4, // Startup complete
-  DATA_QUERY = 5, // Tell me some info
-  DATA_RSP = 6, // Info received
-  ERROR_MSG = 7, // Error message
+  STARTUP_MSG = 1, // Begin startup
+  STARTUP_RSP = 2, // Startup complete
+  DATA_QUERY = 3, // Tell me some info
+  DATA_RSP = 4, // Info received
+  ERROR_MSG = 5, // Error message
+  NEIGHBOR_RSP = 6, // Hello I heard you
+  NEIGHBOR_RSP_ACK = 7, // I got your response, no need to resend
   TYPE_NONE = 8
 } message_id_E;
 // Error handling back to basestation
@@ -179,7 +192,9 @@ typedef enum
 
 // -------------- GLOBAL VARIABLES --------------
 // Initialize the node id queue
-uint8_t payloadDataBuffer[32]; // Max serial buffer data size
+uint8_t payloadDataBuffer[64]; // Max serial buffer data size
+static MsgPayload msgOutgoingPayloads; // Struct of all possible message payloads for outgoing messages
+static MsgPayload msgIncomingPayloads; // Struct of all possible message payloads for incoming messages
 
 // -------------- FUNCTIONS --------------
 // Function Prototypes
@@ -205,27 +220,6 @@ uint8_t getNodeIdFromHeader(uint8_t msgHeader)
 {
   return (uint8_t)((msgHeader & MSG_NODE_ID_MASK) >> MSG_NODE_ID_OFFSET);
 }
-
-// Function to check the radio for messages
-//bool checkForMessageType(message_id_E typeToCheck) DEPRECATED
-//{
-//  message_id_E messageType = TYPE_NONE;
-//  uint8_t currMsgHeader;
-//
-//  // TODO Read bytes from the radio over SPI?
-//  if (Serial.available())
-//  {
-//    // Cast the byte stream as the message struct
-//    currMsgHeader = Serial.peek(); // Peek the header
-//    if (getMessageIdFromHeader(currMsgHeader) == typeToCheck)
-//    {
-//      Serial.println("Correct ACK received!");
-//      return true; // Read in a message of the proper type
-//    }
-//  }
-//  // All other cases return false
-//  return false;
-//}
 
 // Helper function to calculate the number of bytes to expect in a message payload
 uint8_t getPayloadSize(message_id_E msgType)
@@ -259,7 +253,7 @@ uint8_t getPayloadSize(message_id_E msgType)
 
     default:
 #ifdef SERIAL_DEBUG
-      Serial.println("[getPayloadSize] ERROR: Unknown message type!");
+      Serial.println(F("[getPayloadSize] ERROR: Unknown message type!"));
 #endif
       break;
   }
@@ -278,39 +272,40 @@ bool readMessage(message_S* currMessage) // TODO Read bytes from the radio over 
   // If there are bytes in the buffer
   if (numBytesInBuffer != 0)
   {
-    while (radio.available())
+    // Read in the payload
+    if (radio.available())
     {
-      radio.read(&payloadDataBuffer, sizeof(payloadDataBuffer));
+      if(radio.getDynamicPayloadSize() < 1)
+      {
+        Serial.println("Corrupt payload data has been flushed");
+        return false; 
+      }
+      radio.read(&payloadDataBuffer,sizeof(payloadDataBuffer));
+//      radio.read(&payloadDataBuffer, sizeof(uint32_t));
+//      Serial.println("Read a byte!");
     }
-    currMessage->header = (uint8_t) payloadDataBuffer[0];
-
-    currMessage->payload = (uint8_t*)(payloadDataBuffer + sizeof(uint8_t));
-    //    // Read in the header
-    //    Serial.readBytes(&(currMessage->header), sizeof(uint8_t));
-    //
-    //    // Calculate the size of the expected payload
-    //    payloadSize = getPayloadSize(getMessageIdFromHeader(currMessage->header));
-    //
-    ////    Serial.print("PayloadSize = ");
-    ////    Serial.println(payloadSize,DEC);
-    //
-    //    payloadStartTime = millis();
-    //    while ( (Serial.available() != payloadSize) && (payloadStartTime+20000 >= millis()) ) {}
-    //
-    //    if (millis() > payloadStartTime+20000)
-    //    {
-    //      Serial.println("WARNING: COMMUNICATION TIMED OUT");
-    //      Serial.flush();
-    //    }
-    //    else
-    //    {
-    //      // Read in the payload of the message
-    //      Serial.readBytes((uint8_t*)&payloadDataBuffer, payloadSize);
-    //      // Set the payload to the global payload buffer
-    //      currMessage->payload = (uint8_t*)&payloadDataBuffer;
+    Serial.println("First three bytes");
+    Serial.println(payloadDataBuffer[0]);
+    Serial.println(payloadDataBuffer[1]);
+    Serial.println(payloadDataBuffer[2]);
+      currMessage->header = payloadDataBuffer[0];
+      
+//      Serial.println(currMessage->header);
+//       uint8_t numBytesInPayload = getPayloadSize(getMessageIdFromHeader(currMessage->header));
+//    else
+//    {
+//      Serial.print("Payload of size ");
+//      Serial.print(numBytesInPayload);
+//      Serial.println(" not available!");
+//    }
+//    if ((getMessageIdFromHeader(currMessage->header) == NEIGHBOR_QUERY)
+//    {
+//    neighbor_query_payload_S* plsWork = ((neighbor_query_payload_S*) (&payloadDataBuffer+sizeof(uint8_t)));
+//    Serial.println(plsWork->broadcast_power);
+//      currMessage->payload = (uint8_t*)&(payloadDataBuffer[1]);
+//    }
+    
     return true;
-    //    }
-    //return false;
   }
   else
   {
@@ -328,90 +323,90 @@ static void debugMessage(message_S* msgToDebug)
   uint8_t debugMsgNodeId = 0;
 
   parseHeader(msgToDebug, &debugMsgType, &debugMsgNodeId);
-  Serial.print("Sent from Node ");
+  Serial.print(F("Sent from Node "));
   Serial.println(debugMsgNodeId, DEC);
 
   parsePayload(msgToDebug, &debugMsgPayloads);
 
-  Serial.print("Message type: ");
+  Serial.print(F("Message type: "));
   switch (debugMsgType)
   {
     case NEIGHBOR_QUERY:
-      Serial.println("NEIGHBOR_QUERY");
-      Serial.print("broadcast_power = ");
-      Serial.println(debugMsgPayloads.nQueryPayload->broadcast_power, DEC);
+      Serial.println(F("NEIGHBOR_QUERY"));
+      Serial.print(F("broadcast_power = "));
+      Serial.println(debugMsgPayloads.nQueryPayload.broadcast_power, DEC);
       break;
 
     case NEIGHBOR_RSP:
       Serial.println("NEIGHBOR_RSP");
       Serial.print("querying_node_id = ");
-      Serial.println(debugMsgPayloads.nRspPayload->querying_node_id, DEC);
+      Serial.println(debugMsgPayloads.nRspPayload.querying_node_id, DEC);
       Serial.print("received_power = ");
-      Serial.println(debugMsgPayloads.nRspPayload->received_power, DEC);
+      Serial.println(debugMsgPayloads.nRspPayload.received_power, DEC);
       break;
 
     case NEIGHBOR_RSP_ACK:
       Serial.println("NEIGHBOR_RSP_ACK");
       Serial.print("node_acknowledged = ");
-      Serial.println(debugMsgPayloads.nRspPayloadAck->node_acknowledged, DEC);
+      Serial.println(debugMsgPayloads.nRspPayloadAck.node_acknowledged, DEC);
       break;
 
     case STARTUP_MSG:
       Serial.println("STARTUP_MSG");
       Serial.print("target_node = ");
-      Serial.println(debugMsgPayloads.startupMsgPayload->target_node, DEC);
+      Serial.println(debugMsgPayloads.startupMsgPayload.target_node, DEC);
       Serial.print("node_path = [");
       for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
       {
-        Serial.print(debugMsgPayloads.startupMsgPayload->node_path[idx], DEC);
+        Serial.print(debugMsgPayloads.startupMsgPayload.node_path[idx], DEC);
         ((idx == MAX_NODE_PATH - 1) ? Serial.print("]\n\r") : Serial.print(", "));
       }
       break;
 
     case STARTUP_RSP:
-      Serial.println("STARTUP_RSP");
-      Serial.print("target_node = ");
-      Serial.println(debugMsgPayloads.startupRspPayload->target_node, DEC);
-      Serial.print("node_path = [");
+      Serial.println(F("STARTUP_RSP"));
+      Serial.print(F("target_node = "));
+      Serial.println(debugMsgPayloads.startupRspPayload.target_node, DEC);
+      Serial.print(F("node_path = ["));
       for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
       {
-        Serial.print(debugMsgPayloads.startupRspPayload->node_path[idx], DEC);
+        Serial.print(debugMsgPayloads.startupRspPayload.node_path[idx], DEC);
         ((idx == MAX_NODE_PATH - 1) ? Serial.print("]\n\r") : Serial.print(", "));
       }
 
       Serial.println("neighbor_list = (node_id,edge_cost) : ");
       for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
       {
-        Serial.print("(");
-        Serial.print(debugMsgPayloads.startupRspPayload->neighbor_list->node_ids[idx], DEC);
-        Serial.print(",");
-        Serial.print(debugMsgPayloads.startupRspPayload->neighbor_list->edge_costs[idx], DEC);
+        Serial.print(F("("));
+        Serial.print(debugMsgPayloads.startupRspPayload.neighbor_list->node_ids[idx], DEC);
+        Serial.print(F(","));
+        Serial.print(debugMsgPayloads.startupRspPayload.neighbor_list->edge_costs[idx], DEC);
         ((idx == MAX_NODE_PATH - 1) ? Serial.println(")") : Serial.print(")"));
       }
       break;
 
     case DATA_QUERY:
-      Serial.println("DATA_QUERY");
+      Serial.println(F("DATA_QUERY"));
       // TODO Add func as needed debugMsgPayloads.dataQueryPayload
       break;
 
     case DATA_RSP:
-      Serial.println("DATA_RSP");
+      Serial.println(F("DATA_RSP"));
       // TODO Add func as needed debugMsgPayloads.dataRspPayload
       break;
 
     case ERROR_MSG:
-      Serial.println("ERROR_MSG");
-      Serial.print("Unreachable node: ");
-      Serial.println(debugMsgPayloads.errorMsgPayload->unreachable_node);
+      Serial.println(F("ERROR_MSG"));
+      Serial.print(F("Unreachable node: "));
+      Serial.println(debugMsgPayloads.errorMsgPayload.unreachable_node);
       break;
 
     case TYPE_NONE:
-      Serial.println("TYPE_NONE");
+      Serial.println(F("TYPE_NONE"));
       break;
 
     default:
-      Serial.println("Unknown");
+      Serial.println(F("Unknown"));
       break;
   }
 #endif
@@ -433,7 +428,7 @@ bool waitForAck(message_S* messageToSend, message_id_E ackToReceive, uint8_t num
   uint32_t startTimeStamp = 0; // Timer to indicate when to retry the message
   delay(randTime);
 #ifdef SERIAL_DEBUG
-  Serial.println("Broadcasting intended message...");
+  Serial.println(F("Broadcasting intended message..."));
 #endif
 
   // Transmit the message
@@ -457,7 +452,7 @@ bool waitForAck(message_S* messageToSend, message_id_E ackToReceive, uint8_t num
       else // Try again
       {
 #ifdef SERIAL_DEBUG
-        Serial.println("[No Ack] Broadcasting intended message again...");
+        Serial.println(F("[No Ack] Broadcasting intended message again..."));
 #endif
         ++numRetriesSent; // Record the retry
         sendMessage(messageToSend); // Send the message again
@@ -493,35 +488,39 @@ void parsePayload(message_S* receivedMsg, MsgPayload* receivedMsgPayloads)
   switch (getMessageIdFromHeader(receivedMsg->header))
   {
     case NEIGHBOR_QUERY:
-      receivedMsgPayloads->nQueryPayload = (neighbor_query_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->nQueryPayload),(neighbor_query_payload_S*)(receivedMsg->payload),sizeof(neighbor_query_payload_S));
       break;
 
     case NEIGHBOR_RSP:
-      receivedMsgPayloads->nRspPayload = (neighbor_rsp_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->nRspPayload),(neighbor_rsp_payload_S*)(receivedMsg->payload),sizeof(neighbor_rsp_payload_S));
+//      receivedMsgPayloads->nRspPayload = (neighbor_rsp_payload_S*)(receivedMsg->payload);
       break;
 
     case NEIGHBOR_RSP_ACK:
-      receivedMsgPayloads->nRspPayloadAck = (neighbor_rsp_ack_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->nRspPayloadAck),(neighbor_rsp_ack_payload_S*)(receivedMsg->payload),sizeof(neighbor_rsp_ack_payload_S));
       break;
 
     case STARTUP_MSG:
-      receivedMsgPayloads->startupMsgPayload = (startup_msg_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->startupMsgPayload),(startup_msg_payload_S*)(receivedMsg->payload),sizeof(startup_msg_payload_S));
       break;
 
     case STARTUP_RSP:
-      receivedMsgPayloads->startupRspPayload = (startup_rsp_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->startupRspPayload),(startup_rsp_payload_S*)(receivedMsg->payload),sizeof(startup_rsp_payload_S));
       break;
 
     case DATA_QUERY:
-      receivedMsgPayloads->dataQueryPayload = (data_query_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->dataQueryPayload),(data_query_payload_S*)(receivedMsg->payload),sizeof(data_query_payload_S));
+//      receivedMsgPayloads->dataQueryPayload = (data_query_payload_S*)(receivedMsg->payload);
       break;
 
     case DATA_RSP:
-      receivedMsgPayloads->dataRspPayload = (data_rsp_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->dataRspPayload),(data_rsp_payload_S*)(receivedMsg->payload),sizeof(data_rsp_payload_S));
+//      receivedMsgPayloads->dataRspPayload = (data_rsp_payload_S*)(receivedMsg->payload);
       break;
 
     case ERROR_MSG:
-      receivedMsgPayloads->errorMsgPayload = (error_msg_payload_S*)(receivedMsg->payload);
+      memcpy(&(receivedMsgPayloads->errorMsgPayload),(error_msg_payload_S*)(receivedMsg->payload),sizeof(error_msg_payload_S));
+//      receivedMsgPayloads->errorMsgPayload = (error_msg_payload_S*)(receivedMsg->payload);
       break;
 
     default:
@@ -600,7 +599,8 @@ void setup()
   
 //  radio.setChannel(MAIN_CHANNEL); // Start on the main channel
 //  radio.setAutoAck(false); // disable auto acks 
-  
+  radio.setChannel(ACK_CHANNEL);
+  radio.enableDynamicPayloads();
   radio.openWritingPipe(pipe);
   radio.openReadingPipe(1, pipe);
 
@@ -615,8 +615,6 @@ void loop()
 {
   static states_E currentState = WAIT_FOR_TOKEN; // Initial state is wait for token
   static message_S currentMessage; // Set the current state to the starting node state
-  static MsgPayload msgOutgoingPayloads; // Union of all possible message payloads for outgoing messages
-  static MsgPayload msgIncomingPayloads; // Union of all possible message payloads for incoming messages
   static uint8_t numMsgRetries = 3; // How many times resend the message if no ack is received
   static uint32_t startListeningTimestamp = 0; // When this node began listening for responses
   static uint32_t listenMaxTime = 5000; // Time we should spend listening for responses
@@ -650,38 +648,43 @@ void loop()
           if (messageType == NEIGHBOR_QUERY)
           {
 #ifdef SERIAL_DEBUG
-            Serial.println(F("Received NEIGHBOR_QUERY message"));
+//            Serial.println(F("Received NEIGHBOR_QUERY message"));
 #endif
             // Parse the payload into the incoming payloads union structure
             parsePayload(&msgReceived, &msgIncomingPayloads);
-
+//            Serial.print(F("PAYLOAD = "));
+//            Serial.println(msgIncomingPayloads.nQueryPayload.broadcast_power);
+            
             // If this is the first neighbor query message heard
             if (!receivedNeighborQuery)
             {
-              msgOutgoingPayloads.nRspPayload->querying_node_id = receivedMsgNodeId;
-              msgOutgoingPayloads.nRspPayload->received_power = msgIncomingPayloads.nQueryPayload->broadcast_power;
+//              Serial.println(F("First neighbor query heard"));
+              msgOutgoingPayloads.nRspPayload.querying_node_id = receivedMsgNodeId;
+              msgOutgoingPayloads.nRspPayload.received_power = msgIncomingPayloads.nQueryPayload.broadcast_power;
 
-              changeRadioPowerLevel((edge_costs_E*) &msgIncomingPayloads.nQueryPayload->broadcast_power);
+              changeRadioPowerLevel((edge_costs_E*) &msgIncomingPayloads.nQueryPayload.broadcast_power);
 
               // Build and send message response
-              buildMessage(&msgResponse, NODE_ID, NEIGHBOR_RSP, (uint8_t*)(msgOutgoingPayloads.nRspPayload));
+              buildMessage(&msgResponse, NODE_ID, NEIGHBOR_RSP, (uint8_t*)&(msgOutgoingPayloads.nRspPayload));
               receivedNeighborQuery = true;
             }
 
             // The last neighbor query has been heard, time to send the response
-            if (msgIncomingPayloads.nQueryPayload->broadcast_power != MAX_POWER)
+            if (msgIncomingPayloads.nQueryPayload.broadcast_power != MAX_POWER)
             {
+              Serial.println(F("WARNING: Max power broadcast was not heard! Will not send response."));
               break;
             }
 
             // Reset the initial neighbor query indicator
             receivedNeighborQuery = false;
 
+            Serial.println(F("Sending response"));
+            
             // (Re)send NEIGHBOR_RESPONSE message randomly until ACK
             // If no ack is received after three retries
             if (!waitForAck(&msgResponse, NEIGHBOR_RSP_ACK, numMsgRetries, 2000))
             {
-              // TODO Log the neighbor response failure
 #ifdef SERIAL_DEBUG
               Serial.println("WARNING: No neighbor rsp ack received!");
 #endif
@@ -711,10 +714,10 @@ void loop()
                 parsePayload(&msgReceived, &msgIncomingPayloads);
 
                 // Check that the ack was intended for this node
-                if (msgIncomingPayloads.nRspPayloadAck->node_acknowledged != NODE_ID)
+                if (msgIncomingPayloads.nRspPayloadAck.node_acknowledged != NODE_ID)
                 {
 #ifdef SERIAL_DEBUG
-                  Serial.println("WARNING: This node's ID does not match the ack's intended node ID!");
+                  Serial.println(F("WARNING: This node's ID does not match the ack's intended node ID!"));
 #endif
                 }
               }
@@ -726,19 +729,19 @@ void loop()
             // Parse the payload into the incoming payloads union structure
             parsePayload(&currentMessage, &msgIncomingPayloads);
 #ifdef SERIAL_DEBUG
-            Serial.print("STARTUP_MSG received,");
+            Serial.print(F("STARTUP_MSG received,"));
 #endif
             // Check if this node is the message's intended destination and that there is no next hop, indicated by the next node in the array being 0
-            if ((msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node] == NODE_ID) &&
-                ((msgIncomingPayloads.startupMsgPayload->target_node + 1 >= MAX_NODE_PATH) ||
-                 (msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1] == 0)))
+            if ((msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node] == NODE_ID) &&
+                ((msgIncomingPayloads.startupMsgPayload.target_node + 1 >= MAX_NODE_PATH) ||
+                 (msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1] == 0)))
             {
 #ifdef SERIAL_DEBUG
-              Serial.println(" transitioning to startup mode...");
+              Serial.println(F(" transitioning to startup mode..."));
 #endif
 
               // Store the reversed node path for when we need to send the startup response
-              reverseNodeList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload->node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
+              reverseNodeList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload.node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
 
               // This node is the end of the node path
               currentState = STARTUP_MODE;
@@ -754,12 +757,12 @@ void loop()
         // Broadcast query at all four power levels MIN, LOW, HIGH, MAX
         for (uint8_t powerLevel = 1; powerLevel < 5; ++powerLevel) // 5 is total number of edge costs
         {
-          msgOutgoingPayloads.nQueryPayload->broadcast_power = powerLevel;
+          msgOutgoingPayloads.nQueryPayload.broadcast_power = powerLevel;
 
           // Start querying for neighbors, build neighbor query mesage
-          buildMessage(&msgResponse, NODE_ID, NEIGHBOR_QUERY, (uint8_t*)(msgOutgoingPayloads.nQueryPayload));
+          buildMessage(&msgResponse, NODE_ID, NEIGHBOR_QUERY, (uint8_t*)&(msgOutgoingPayloads.nQueryPayload));
 #ifdef SERIAL_DEBUG
-          Serial.print("Broadcasting NEIGHBOR_QUERY at power level ");
+          Serial.print(F("Broadcasting NEIGHBOR_QUERY at power level "));
           Serial.println(powerLevel);
 #endif
 
@@ -768,7 +771,7 @@ void loop()
         } // End of broadcasting NEIGHBOR_QUERY at different power levels
 
 #ifdef SERIAL_DEBUG
-        Serial.println("Listening for neighbor responses...");
+        Serial.println(F("Listening for neighbor responses..."));
 #endif
         // Listen for NEIGHBOR_RESPONSEs for a fixed time interval
         startListeningTimestamp = micros();
@@ -778,13 +781,13 @@ void loop()
           if (radio.available())
           {
 #ifdef SERIAL_DEBUG
-            Serial.println("NEIGHBOR_RSP received!");
+            Serial.println(F("NEIGHBOR_RSP received!"));
 #endif
             // Read the message from the buffer
             if (!readMessage(&msgReceived))
             {
 #ifdef SERIAL_DEBUG
-              Serial.println("ERROR: There was a problem reading the received message!");
+              Serial.println(F("ERROR: There was a problem reading the received message!"));
 #endif
             }
             // Message successfully read from the buffer
@@ -802,10 +805,10 @@ void loop()
               parsePayload(&msgReceived, &msgIncomingPayloads);
 
               // Check that the message contains the correct querying node id
-              if (msgIncomingPayloads.nRspPayload->querying_node_id != NODE_ID)
+              if (msgIncomingPayloads.nRspPayload.querying_node_id != NODE_ID)
               {
 #ifdef SERIAL_DEBUG
-                Serial.println("WARNING: Message contains incorrect querying_node_id");
+                Serial.println(F("WARNING: Message contains incorrect querying_node_id"));
 #endif
               }
               else // The message contents are correct
@@ -814,15 +817,15 @@ void loop()
                 nList.node_ids[nList_idx] = getNodeIdFromHeader(msgReceived.header);
 
                 // Store the power level of the discovered neighbor in this node's neighbor list
-                nList.node_ids[nList_idx] = msgIncomingPayloads.nRspPayload->received_power;
+                nList.node_ids[nList_idx] = msgIncomingPayloads.nRspPayload.received_power;
 
                 ++nList_idx; // Increment the list index
 
                 // Set the payload neighbor response ack to the id of the node that we are acknowledging
-                msgOutgoingPayloads.nRspPayloadAck->node_acknowledged = getNodeIdFromHeader(msgReceived.header);
+                msgOutgoingPayloads.nRspPayloadAck.node_acknowledged = getNodeIdFromHeader(msgReceived.header);
 
                 // Build and send NEIGHBOR_RSP_ACK when the NEIGHBOR_RSP received
-                buildMessage(&msgAck, NODE_ID, NEIGHBOR_RSP_ACK, (uint8_t*)(msgOutgoingPayloads.nRspPayloadAck));
+                buildMessage(&msgAck, NODE_ID, NEIGHBOR_RSP_ACK, (uint8_t*)&(msgOutgoingPayloads.nRspPayloadAck));
 
                 // Write the message ack with size of header + payload
                 sendMessage(&msgAck);
@@ -846,15 +849,15 @@ void loop()
         // NEIGHBORS QUERIED, TIME TO SEND NEIGHBOR LIST TO BASESTATION
 
         // Building payload: Set the node list index to the first neighbor
-        msgOutgoingPayloads.startupRspPayload->target_node = 1;
+        msgOutgoingPayloads.startupRspPayload.target_node = 1;
 
         // Buidling payload: Save the reversed copy of the node_path that the original startup message contained
-        memcpy(&(msgOutgoingPayloads.startupRspPayload->node_path), &lastMsgReversedNodePath, MAX_NODE_PATH);
+        memcpy(&(msgOutgoingPayloads.startupRspPayload.node_path), &lastMsgReversedNodePath, MAX_NODE_PATH);
 
-        msgOutgoingPayloads.startupRspPayload->neighbor_list = &nList; // Save the neighbor list in the startup response payload
+        msgOutgoingPayloads.startupRspPayload.neighbor_list = &nList; // Save the neighbor list in the startup response payload
         
         // Build the startup response message
-        buildMessage(&msgResponse, NODE_ID, STARTUP_RSP, (uint8_t*)(msgOutgoingPayloads.startupRspPayload));
+        buildMessage(&msgResponse, NODE_ID, STARTUP_RSP, (uint8_t*)&(msgOutgoingPayloads.startupRspPayload));
 
         // Send the startup response message with the size of the header and startup response payload
         sendMessage(&msgResponse);
@@ -877,7 +880,7 @@ void loop()
           if (messageType == NEIGHBOR_QUERY)
           {
 #ifdef SERIAL_DEBUG
-            Serial.println("Received NEIGHBOR_QUERY message");
+            Serial.println(F("Received NEIGHBOR_QUERY message"));
 #endif
             // Parse the payload into the incoming payloads union structure
             parsePayload(&msgReceived, &msgIncomingPayloads);
@@ -885,18 +888,18 @@ void loop()
             // If this is the first neighbor query message heard
             if (!receivedNeighborQuery)
             {
-              msgOutgoingPayloads.nRspPayload->querying_node_id = receivedMsgNodeId;
-              msgOutgoingPayloads.nRspPayload->received_power = msgIncomingPayloads.nQueryPayload->broadcast_power;
+              msgOutgoingPayloads.nRspPayload.querying_node_id = receivedMsgNodeId;
+              msgOutgoingPayloads.nRspPayload.received_power = msgIncomingPayloads.nQueryPayload.broadcast_power;
 
-              changeRadioPowerLevel((edge_costs_E*) &msgIncomingPayloads.nQueryPayload->broadcast_power);
+              changeRadioPowerLevel((edge_costs_E*) &msgIncomingPayloads.nQueryPayload.broadcast_power);
 
               // Build and send message response
-              buildMessage(&msgResponse, NODE_ID, NEIGHBOR_RSP, (uint8_t*)(msgOutgoingPayloads.nRspPayload));
+              buildMessage(&msgResponse, NODE_ID, NEIGHBOR_RSP, (uint8_t*)&(msgOutgoingPayloads.nRspPayload));
               receivedNeighborQuery = true;
             }
 
             // The last neighbor query has been heard, time to send the response
-            if (msgIncomingPayloads.nQueryPayload->broadcast_power != MAX_POWER)
+            if (msgIncomingPayloads.nQueryPayload.broadcast_power != MAX_POWER)
             {
               break;
             }
@@ -909,7 +912,7 @@ void loop()
             if (!waitForAck(&msgResponse, NEIGHBOR_RSP_ACK, numMsgRetries, 2000)) // Set to wait for an ack for 2 seconds ? or time between retries
             {
 #ifdef SERIAL_DEBUG
-              Serial.println("WARNING: No neighbor rsp ack received!");
+              Serial.println(F("WARNING: No neighbor rsp ack received!"));
 #endif
             }
             else // Ack was received
@@ -918,7 +921,7 @@ void loop()
               if (!readMessage(&msgReceived)) // TODO Do we really want to be reading messages in multiple places
               {
 #ifdef SERIAL_DEBUG
-                Serial.println("ERROR: There was a problem reading in the received message!");
+                Serial.println(F("ERROR: There was a problem reading in the received message!"));
 #endif
               }
               // Check that the correct node acked the response
@@ -928,7 +931,7 @@ void loop()
                 if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
                 {
 #ifdef SERIAL_DEBUG
-                  Serial.println("WARNING: Received neighbor response ack from incorrect node!");
+                  Serial.println(F("WARNING: Received neighbor response ack from incorrect node!"));
 #endif
                 }
 
@@ -936,10 +939,10 @@ void loop()
                 parsePayload(&msgReceived, &msgIncomingPayloads);
 
                 // Check that the ack was intended for this node
-                if (msgIncomingPayloads.nRspPayloadAck->node_acknowledged != NODE_ID)
+                if (msgIncomingPayloads.nRspPayloadAck.node_acknowledged != NODE_ID)
                 {
 #ifdef SERIAL_DEBUG
-                  Serial.println("WARNING: This node's ID does not match the ack's intended node ID!");
+                  Serial.println(F("WARNING: This node's ID does not match the ack's intended node ID!"));
 #endif
                 }
               }
@@ -951,35 +954,35 @@ void loop()
             parsePayload(&currentMessage, &msgIncomingPayloads);
 
 #ifdef SERIAL_DEBUG
-            Serial.print("DATA_QUERY received,");
+            Serial.print(F("DATA_QUERY received,"));
 #endif
             // Check if this node is the message's intended destination and that there is no next hop, indicated by the next node in the array being 0
-            if ((msgIncomingPayloads.dataQueryPayload->node_path[msgIncomingPayloads.dataQueryPayload->target_node] == NODE_ID) &&
-                ((msgIncomingPayloads.dataQueryPayload->target_node + 1 >= MAX_NODE_PATH) ||
-                 (msgIncomingPayloads.dataQueryPayload->node_path[msgIncomingPayloads.dataQueryPayload->target_node + 1] == 0)))
+            if ((msgIncomingPayloads.dataQueryPayload.node_path[msgIncomingPayloads.dataQueryPayload.target_node] == NODE_ID) &&
+                ((msgIncomingPayloads.dataQueryPayload.target_node + 1 >= MAX_NODE_PATH) ||
+                 (msgIncomingPayloads.dataQueryPayload.node_path[msgIncomingPayloads.dataQueryPayload.target_node + 1] == 0)))
             {
 #ifdef SERIAL_DEBUG
-              Serial.println(" processing request...");
+              Serial.println(F(" processing request..."));
 #endif
               // Store the reversed node path for when we need to send the startup response
-              reverseNodeList((uint8_t*) & (msgIncomingPayloads.dataQueryPayload->node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
+              reverseNodeList((uint8_t*) & (msgIncomingPayloads.dataQueryPayload.node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
 
               // TODO Process the request
-              if (msgIncomingPayloads.dataQueryPayload->request == 1)
+              if (msgIncomingPayloads.dataQueryPayload.request == 1)
               {
 #ifdef SERIAL_DEBUG
                 Serial.println("Processing generic request 1!");
 #endif
                 // Building payload: Set the node list index to the first neighbor
-                msgOutgoingPayloads.dataRspPayload->target_node = 1;
+                msgOutgoingPayloads.dataRspPayload.target_node = 1;
 
-                msgOutgoingPayloads.dataRspPayload->data = 104; // TODO Fetch actual data
+                msgOutgoingPayloads.dataRspPayload.data = 104; // TODO Fetch actual data
 
                 // Buidling payload: Save the reversed copy of the node_path that the original startup message contained
-                memcpy(&(msgOutgoingPayloads.dataRspPayload->node_path), &lastMsgReversedNodePath, MAX_NODE_PATH);
+                memcpy(&(msgOutgoingPayloads.dataRspPayload.node_path), &lastMsgReversedNodePath, MAX_NODE_PATH);
 
                 // Forward the startup message, build the startup message
-                buildMessage(&msgResponse, NODE_ID, DATA_RSP, (uint8_t*)(msgOutgoingPayloads.dataRspPayload));
+                buildMessage(&msgResponse, NODE_ID, DATA_RSP, (uint8_t*)&(msgOutgoingPayloads.dataRspPayload));
 
                 // Send the message that is the size of the header + data response message payload
                 sendMessage(&msgResponse);
@@ -989,11 +992,11 @@ void loop()
             {
 #ifdef SERIAL_DEBUG
               Serial.print("Forwarding message to node ");
-              Serial.println(msgIncomingPayloads.dataQueryPayload->node_path[msgIncomingPayloads.dataQueryPayload->target_node + 1], DEC);
+              Serial.println(msgIncomingPayloads.dataQueryPayload.node_path[msgIncomingPayloads.dataQueryPayload.target_node + 1], DEC);
 #endif
               // Check that the next hop node has a valid id
-              if (((msgIncomingPayloads.dataQueryPayload->target_node + 1) >= MAX_NODE_PATH) ||
-                  (msgIncomingPayloads.dataQueryPayload->node_path[msgIncomingPayloads.dataQueryPayload->target_node + 1] == 0))
+              if (((msgIncomingPayloads.dataQueryPayload.target_node + 1) >= MAX_NODE_PATH) ||
+                  (msgIncomingPayloads.dataQueryPayload.node_path[msgIncomingPayloads.dataQueryPayload.target_node + 1] == 0))
               {
 #ifdef SERIAL_DEBUG
                 Serial.println("ERROR: This node is not the destination, but end of node path reached!");
@@ -1001,15 +1004,15 @@ void loop()
               }
 
               // Check if the node is reachable
-              powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.dataQueryPayload->node_path[msgIncomingPayloads.dataQueryPayload->target_node + 1]);
+              powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.dataQueryPayload.node_path[msgIncomingPayloads.dataQueryPayload.target_node + 1]);
 
               if (powerLevelToReachNode == INFINITY_POWER) // Node unreachable, send error message back
               {
                 // Build and send the error message indicating the unreachable node
-                msgOutgoingPayloads.errorMsgPayload->unreachable_node = msgIncomingPayloads.dataQueryPayload->node_path[msgIncomingPayloads.dataQueryPayload->target_node + 1];
+                msgOutgoingPayloads.errorMsgPayload.unreachable_node = msgIncomingPayloads.dataQueryPayload.node_path[msgIncomingPayloads.dataQueryPayload.target_node + 1];
 
                 // Forward the startup message, build the startup message
-                buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)(msgOutgoingPayloads.errorMsgPayload));
+                buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)&(msgOutgoingPayloads.errorMsgPayload));
               }
               else // The node is reachable, forward the message
               {
@@ -1017,10 +1020,10 @@ void loop()
                 msgOutgoingPayloads.dataQueryPayload = msgIncomingPayloads.dataQueryPayload;
 
                 // Increment the target node index to the next node
-                ++(msgOutgoingPayloads.dataQueryPayload->target_node);
+                ++(msgOutgoingPayloads.dataQueryPayload.target_node);
 
                 // Forward the data query message, build the data query message
-                buildMessage(&msgResponse, NODE_ID, DATA_QUERY, (uint8_t*)(msgOutgoingPayloads.dataQueryPayload));
+                buildMessage(&msgResponse, NODE_ID, DATA_QUERY, (uint8_t*)&(msgOutgoingPayloads.dataQueryPayload));
 
                 // Send the message that is the size of the header + data query message payload
                 sendMessage(&msgResponse);
@@ -1032,11 +1035,11 @@ void loop()
           {
 #ifdef SERIAL_DEBUG
             Serial.print("Forwarding message to node ");
-            Serial.println(msgIncomingPayloads.dataRspPayload->node_path[msgIncomingPayloads.dataRspPayload->target_node + 1], DEC);
+            Serial.println(msgIncomingPayloads.dataRspPayload.node_path[msgIncomingPayloads.dataRspPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id
-            if (((msgIncomingPayloads.dataRspPayload->target_node + 1) >= MAX_NODE_PATH) ||
-                (msgIncomingPayloads.dataRspPayload->node_path[msgIncomingPayloads.dataRspPayload->target_node + 1] == 0))
+            if (((msgIncomingPayloads.dataRspPayload.target_node + 1) >= MAX_NODE_PATH) ||
+                (msgIncomingPayloads.dataRspPayload.node_path[msgIncomingPayloads.dataRspPayload.target_node + 1] == 0))
             {
 #ifdef SERIAL_DEBUG
               Serial.println("ERROR: This node is not the destination, but end of node path reached!");
@@ -1044,15 +1047,15 @@ void loop()
             }
 
             // Check if the node is reachable
-            powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.dataRspPayload->node_path[msgIncomingPayloads.dataRspPayload->target_node + 1]);
+            powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.dataRspPayload.node_path[msgIncomingPayloads.dataRspPayload.target_node + 1]);
 
             if (powerLevelToReachNode == INFINITY_POWER) // Node unreachable, send error message back
             {
               // Build and send the error message indicating the unreachable node
-              msgOutgoingPayloads.errorMsgPayload->unreachable_node = msgIncomingPayloads.dataRspPayload->node_path[msgIncomingPayloads.dataRspPayload->target_node + 1];
+              msgOutgoingPayloads.errorMsgPayload.unreachable_node = msgIncomingPayloads.dataRspPayload.node_path[msgIncomingPayloads.dataRspPayload.target_node + 1];
 
               // Forward the startup message, build the startup message
-              buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)(msgOutgoingPayloads.errorMsgPayload));
+              buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)&(msgOutgoingPayloads.errorMsgPayload));
             }
             else // The node is reachable, forward the message
             {
@@ -1060,10 +1063,10 @@ void loop()
               msgOutgoingPayloads.dataRspPayload = msgIncomingPayloads.dataRspPayload;
 
               // Increment the target node index to the next node
-              ++(msgOutgoingPayloads.dataRspPayload->target_node);
+              ++(msgOutgoingPayloads.dataRspPayload.target_node);
 
               // Forward the startup message, build the startup message
-              buildMessage(&msgResponse, NODE_ID, DATA_RSP, (uint8_t*)(msgOutgoingPayloads.dataRspPayload));
+              buildMessage(&msgResponse, NODE_ID, DATA_RSP, (uint8_t*)&(msgOutgoingPayloads.dataRspPayload));
 
               // Send the message that is the size of the header + startup message payload
               sendMessage(&msgResponse);
@@ -1078,16 +1081,16 @@ void loop()
             Serial.print("STARTUP_MSG received,");
 #endif
             // Check if this node is the message's intended destination and that there is no next hop, indicated by the next node in the array being 0
-            if ((msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node] == NODE_ID) &&
-                ((msgIncomingPayloads.startupMsgPayload->target_node + 1 >= MAX_NODE_PATH) ||
-                 (msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1] == 0)))
+            if ((msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node] == NODE_ID) &&
+                ((msgIncomingPayloads.startupMsgPayload.target_node + 1 >= MAX_NODE_PATH) ||
+                 (msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1] == 0)))
             {
 #ifdef SERIAL_DEBUG
               Serial.println(" transitioning to startup mode...");
 #endif
 
               // Store the reversed node path for when we need to send the startup response
-              reverseNodeList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload->node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
+              reverseNodeList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload.node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
 
               // This node is the end of the node path
               currentState = STARTUP_MODE;
@@ -1096,11 +1099,11 @@ void loop()
             
 #ifdef SERIAL_DEBUG
             Serial.print("Forwarding message to node ");
-            Serial.println(msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1], DEC);
+            Serial.println(msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id
-            if (((msgIncomingPayloads.startupMsgPayload->target_node + 1) >= MAX_NODE_PATH) ||
-                (msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1] == 0))
+            if (((msgIncomingPayloads.startupMsgPayload.target_node + 1) >= MAX_NODE_PATH) ||
+                (msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1] == 0))
             {
 #ifdef SERIAL_DEBUG
               Serial.println("ERROR: This node is not the destination, but end of node path reached!");
@@ -1108,15 +1111,15 @@ void loop()
             }
 
             // Check if the node is reachable
-            powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1]);
+            powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1]);
 
             if (powerLevelToReachNode == INFINITY_POWER) // Node unreachable, send error message back
             {
               // Build and send the error message indicating the unreachable node
-              msgOutgoingPayloads.errorMsgPayload->unreachable_node = msgIncomingPayloads.startupMsgPayload->node_path[msgIncomingPayloads.startupMsgPayload->target_node + 1];
+              msgOutgoingPayloads.errorMsgPayload.unreachable_node = msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1];
 
               // Forward the startup message, build the startup message
-              buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)(msgOutgoingPayloads.errorMsgPayload));
+              buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)&(msgOutgoingPayloads.errorMsgPayload));
             }
             else // The node is reachable, forward the message
             {
@@ -1124,10 +1127,10 @@ void loop()
               msgOutgoingPayloads.startupMsgPayload = msgIncomingPayloads.startupMsgPayload;
 
               // Increment the target node index to the next node
-              ++(msgOutgoingPayloads.startupMsgPayload->target_node);
+              ++(msgOutgoingPayloads.startupMsgPayload.target_node);
 
               // Forward the startup message, build the startup message
-              buildMessage(&msgResponse, NODE_ID, STARTUP_MSG, (uint8_t*)(msgOutgoingPayloads.startupMsgPayload));
+              buildMessage(&msgResponse, NODE_ID, STARTUP_MSG, (uint8_t*)&(msgOutgoingPayloads.startupMsgPayload));
 
               // Send the message that is the size of the header + startup message payload
               sendMessage(&msgResponse);
@@ -1137,11 +1140,11 @@ void loop()
           {
 #ifdef SERIAL_DEBUG
             Serial.print("Forwarding message to node ");
-            Serial.println(msgIncomingPayloads.startupRspPayload->node_path[msgIncomingPayloads.startupRspPayload->target_node + 1], DEC);
+            Serial.println(msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id
-            if (((msgIncomingPayloads.startupRspPayload->target_node + 1) >= MAX_NODE_PATH) ||
-                (msgIncomingPayloads.startupRspPayload->node_path[msgIncomingPayloads.startupRspPayload->target_node + 1] == 0))
+            if (((msgIncomingPayloads.startupRspPayload.target_node + 1) >= MAX_NODE_PATH) ||
+                (msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node + 1] == 0))
             {
 #ifdef SERIAL_DEBUG
               Serial.println("ERROR: This node is not the destination, but end of node path reached!");
@@ -1149,15 +1152,15 @@ void loop()
             }
 
             // Check if the node is reachable
-            powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.startupRspPayload->node_path[msgIncomingPayloads.startupRspPayload->target_node + 1]);
+            powerLevelToReachNode = nodeReachable(&nList, msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node + 1]);
 
             if (powerLevelToReachNode == INFINITY_POWER) // Node unreachable, send error message back
             {
               // Build and send the error message indicating the unreachable node
-              msgOutgoingPayloads.errorMsgPayload->unreachable_node = msgIncomingPayloads.startupRspPayload->node_path[msgIncomingPayloads.startupRspPayload->target_node + 1];
+              msgOutgoingPayloads.errorMsgPayload.unreachable_node = msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node + 1];
 
               // Forward the startup message, build the startup message
-              buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)(msgOutgoingPayloads.errorMsgPayload));
+              buildMessage(&msgResponse, NODE_ID, ERROR_MSG, (uint8_t*)&(msgOutgoingPayloads.errorMsgPayload));
             }
             else // The node is reachable, forward the message
             {
@@ -1165,10 +1168,10 @@ void loop()
               msgOutgoingPayloads.startupRspPayload = msgIncomingPayloads.startupRspPayload;
 
               // Increment the target node index to the next node
-              ++(msgOutgoingPayloads.startupRspPayload->target_node);
+              ++(msgOutgoingPayloads.startupRspPayload.target_node);
 
               // Forward the startup message, build the startup message
-              buildMessage(&msgResponse, NODE_ID, STARTUP_RSP, (uint8_t*)(msgOutgoingPayloads.startupRspPayload));
+              buildMessage(&msgResponse, NODE_ID, STARTUP_RSP, (uint8_t*)&(msgOutgoingPayloads.startupRspPayload));
 
               // Send the message that is the size of the header + startup message payload
               sendMessage(&msgResponse);
