@@ -654,7 +654,7 @@ void loop()
   static neighbor_list_S nList;
   static bool receivedNeighborQuery = false;
   uint8_t powerLevelToReachNode = 0;
-  uint8_t nQuerySenderId = 0;
+  static uint8_t nQuerySenderId = 0;
 
   // This is the state machine for the node
   switch (currentState)
@@ -709,54 +709,73 @@ void loop()
             // Reset the initial neighbor query indicator
             receivedNeighborQuery = false;
 
+            // RANDOM BACKOFF BEFORE NEIGHBOR RESPONSE
+            uint16_t randTime = random(250); // Wait a random amount of time 0-.25sec
+            delay(randTime);
+#ifdef SERIAL_DEBUG
+            Serial.println(F("Broadcasting intended message..."));
+#endif
+
+            // Transmit the neighbor response
+            sendMessage(&msgResponse);
 
             uint32_t startTimer1 = millis();
-            while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) > 100))
+
+            // WAIT FOR NEIGHBOR RESPONSE ACK
+            while (!radio.available())
             {
-              // (Re)send NEIGHBOR_RESPONSE message randomly until ACK
-              // If no ack is received after three retries
-              if (!waitForAck(&msgResponse, NEIGHBOR_RSP_ACK, numMsgRetries, 2000))
+              if ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) > 50))
               {
-#ifdef SERIAL_DEBUG
-                Serial.println("WARNING: No neighbor rsp ack received!");
-#endif
-              }
-              else
-              {
-                // Read the message from the buffer
-                if (!readMessage(&msgReceived)) // TODO Do we really want to be reading messages in multiple places
+                // (Re)send NEIGHBOR_RESPONSE message randomly until ACK
+                if (!radio.available()) // Ack was received
                 {
-#ifdef SERIAL_DEBUG
-                  Serial.println("ERROR: There was a problem reading in the received message!");
-#endif
-                }
-                else // Check that the correct node acked the response
-                {
-                  debugMessage(&msgReceived);
-
-                  // Save node id of last ack
-                  nQuerySenderId = getNodeIdFromHeader(msgReceived.header);
-                  if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
+                  // Read the message from the buffer
+                  if (!readMessage(&msgReceived)) // TODO Do we really want to be reading messages in multiple places
                   {
 #ifdef SERIAL_DEBUG
-                    Serial.println("WARNING: Received neighbor response ack from incorrect node!");
+                    Serial.println("ERROR: There was a problem reading in the received message!");
 #endif
-                    continue;
                   }
-
-                  // Parse the payload into the incoming payloads union structure
-                  parsePayload(&msgReceived, &msgIncomingPayloads);
-
-                  // Check that the ack was intended for this node
-                  if (msgIncomingPayloads.nRspPayloadAck.node_acknowledged != NODE_ID)
+                  else // Check that the correct node acked the response
                   {
+                    debugMessage(&msgReceived);
+
+                    // Save node id of last ack
+                    nQuerySenderId = getNodeIdFromHeader(msgReceived.header);
+                    if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
+                    {
+
 #ifdef SERIAL_DEBUG
-                    Serial.println(F("WARNING: This node's ID does not match the ack's intended node ID!"));
+                      Serial.println("WARNING: Received neighbor response ack from incorrect node!");
 #endif
+                    }
+                    else
+                    {
+#ifdef SERIAL_DEBUG
+                      Serial.println("Correct NEIGHBOR_RSP_ACK received");
+#endif
+                    }
+
+                    // Parse the payload into the incoming payloads union structure
+                    parsePayload(&msgReceived, &msgIncomingPayloads);
+
+                    // Check that the ack was intended for this node
+                    if (msgIncomingPayloads.nRspPayloadAck.node_acknowledged != NODE_ID)
+                    {
+                      sendMessage(&msgResponse); // Send the message again
+                      startTimer1 = millis();
+#ifdef SERIAL_DEBUG
+                      Serial.println("WARNING: This node's ID does not match the ack's intended node ID!");
+#endif
+                    }
                   }
-                }
+                } // End ack received
               }
-            }// END RETRY LOOP (wait for ack)
+              else // Ack wait timer expired or neighbor rsp ack received
+              {
+                break;
+              }
+            }// END OF WAITING FOR ACK
           }
           // If the message is a startup message
           else if (messageType == STARTUP_MSG)
@@ -949,46 +968,74 @@ void loop()
             // Reset the initial neighbor query indicator
             receivedNeighborQuery = false;
 
-            // (Re)send NEIGHBOR_RESPONSE message randomly until ACK
-            // If no ack is received after three retries
-            if (!waitForAck(&msgResponse, NEIGHBOR_RSP_ACK, numMsgRetries, 2000)) // Set to wait for an ack for 2 seconds ? or time between retries
-            {
+            // RANDOM BACKOFF BEFORE NEIGHBOR RESPONSE
+            uint16_t randTime = random(250); // Wait a random amount of time 0-.25sec
+            delay(randTime);
 #ifdef SERIAL_DEBUG
-              Serial.println(F("WARNING: No neighbor rsp ack received!"));
+            Serial.println(F("Broadcasting intended message..."));
 #endif
-            }
-            else // Ack was received
-            {
-              // Read the message from the buffer
-              if (!readMessage(&msgReceived)) // TODO Do we really want to be reading messages in multiple places
-              {
-#ifdef SERIAL_DEBUG
-                Serial.println(F("ERROR: There was a problem reading in the received message!"));
-#endif
-              }
-              // Check that the correct node acked the response
-              else
-              {
-                //                debugMessage(&msgReceived);
-                if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
-                {
-#ifdef SERIAL_DEBUG
-                  Serial.println(F("WARNING: Received neighbor response ack from incorrect node!"));
-#endif
-                }
 
-                // Parse the payload into the incoming payloads union structure
-                parsePayload(&msgReceived, &msgIncomingPayloads);
-
-                // Check that the ack was intended for this node
-                if (msgIncomingPayloads.nRspPayloadAck.node_acknowledged != NODE_ID)
+            // Transmit the neighbor response
+            sendMessage(&msgResponse);
+            
+            uint32_t startTimer1 = millis();
+            nQuerySenderId = 0;
+            
+            // WAIT FOR NEIGHBOR RESPONSE ACK
+            while (!radio.available())
+            {              
+              if ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) > 50))
+              {
+                // (Re)send NEIGHBOR_RESPONSE message randomly until ACK
+                if (!radio.available()) // Ack was received
                 {
+                  // Read the message from the buffer
+                  if (!readMessage(&msgReceived)) // TODO Do we really want to be reading messages in multiple places
+                  {
 #ifdef SERIAL_DEBUG
-                  Serial.println(F("WARNING: This node's ID does not match the ack's intended node ID!"));
+                    Serial.println("ERROR: There was a problem reading in the received message!");
 #endif
-                }
+                  }
+                  else // Check that the correct node acked the response
+                  {
+                    debugMessage(&msgReceived);
+
+                    // Save node id of last ack
+                    nQuerySenderId = getNodeIdFromHeader(msgReceived.header);
+                    if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
+                    {
+
+#ifdef SERIAL_DEBUG
+                      Serial.println("WARNING: Received neighbor response ack from incorrect node!");
+#endif
+                    }
+                    else
+                    {
+#ifdef SERIAL_DEBUG
+                      Serial.println("Correct NEIGHBOR_RSP_ACK received");
+#endif
+                    }
+
+                    // Parse the payload into the incoming payloads union structure
+                    parsePayload(&msgReceived, &msgIncomingPayloads);
+
+                    // Check that the ack was intended for this node
+                    if (msgIncomingPayloads.nRspPayloadAck.node_acknowledged != NODE_ID)
+                    {
+                      sendMessage(&msgResponse); // Send the message again
+                      startTimer1 = millis();
+#ifdef SERIAL_DEBUG
+                      Serial.println("WARNING: This node's ID does not match the ack's intended node ID!");
+#endif
+                    }
+                  }
+                } // End ack received
               }
-            }
+              else // Ack wait timer expired or neighbor rsp ack received
+              {
+                break;
+              }
+            }// END OF WAITING FOR ACK
           }
           else if (messageType == DATA_QUERY)
           {
