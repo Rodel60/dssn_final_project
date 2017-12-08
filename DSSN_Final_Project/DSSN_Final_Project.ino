@@ -627,7 +627,7 @@ void setup()
 
   //  radio.setChannel(MAIN_CHANNEL); // Start on the main channel
   //  radio.setAutoAck(false); // disable auto acks
-  radio.setChannel(ACK_CHANNEL);
+  radio.setChannel(MAIN_CHANNEL);
   radio.enableDynamicPayloads();
   radio.openWritingPipe(pipe);
   radio.openReadingPipe(1, pipe);
@@ -730,7 +730,7 @@ void loop()
               sendMessage(&msgResponse);
               Serial.println("Sending neighbor response...");
 
-              
+              radio.setChannel(ACK_CHANNEL);
               uint32_t startTimer1 = millis();
               while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
               {
@@ -770,6 +770,7 @@ void loop()
                       Serial.println("Correct NEIGHBOR_RSP_ACK received");
 #endif
                       correctNeighRspReceived = true;
+                      radio.setChannel(MAIN_CHANNEL);
                       break;
                     }
 
@@ -793,6 +794,7 @@ void loop()
                   break;
                 }
               }
+              radio.setChannel(MAIN_CHANNEL);
             }// END OF WAITING FOR ACK
           }
           // If the message is a startup message
@@ -914,8 +916,10 @@ void loop()
                 // Build and send NEIGHBOR_RSP_ACK when the NEIGHBOR_RSP received
                 buildMessage(&msgAck, NODE_ID, NEIGHBOR_RSP_ACK, (uint8_t*) & (msgOutgoingPayloads.nRspPayloadAck));
 
+                radio.setChannel(ACK_CHANNEL);
                 // Write the message ack with size of header + payload
                 sendMessage(&msgAck);
+                radio.setChannel(MAIN_CHANNEL);
               }
             }
           }
@@ -1002,6 +1006,7 @@ void loop()
               sendMessage(&msgResponse);
               Serial.println("Sending neighbor response...");
 
+              radio.setChannel(ACK_CHANNEL);
               nQuerySenderId = 0;
               uint32_t startTimer1 = millis();
               while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
@@ -1042,6 +1047,7 @@ void loop()
                       Serial.println("Correct NEIGHBOR_RSP_ACK received");
 #endif
                       correctNeighRspReceived = true;
+                      radio.setChannel(MAIN_CHANNEL);
                       break;
                     }
 
@@ -1065,6 +1071,7 @@ void loop()
                   break;
                 }
               }
+              radio.setChannel(MAIN_CHANNEL);
             }// END OF WAITING FOR ACK
           }
           else if (messageType == DATA_QUERY)
