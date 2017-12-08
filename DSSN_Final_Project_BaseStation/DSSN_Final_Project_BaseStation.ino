@@ -945,6 +945,12 @@ void loop()
 
                     // Save node id of last ack
                     nQuerySenderId = getNodeIdFromHeader(msgReceived.header);
+                    // If the message ID is not a n rsp ack, throw it away
+                    if (getMessageIdFromHeader(msgReceived.header) != NEIGHBOR_RSP_ACK)
+                    {
+                      nQuerySenderId = 0;
+                      continue;
+                    }
                     if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
                     {
 
@@ -969,10 +975,14 @@ void loop()
                       startTimer1 = millis();
 #ifdef SERIAL_DEBUG
                       Serial.println("WARNING: This node's ID does not match the ack's intended node ID!");
+                      Serial.println("Resending neighbor response...");
 #endif
                     }
                   }
                 } // End ack received
+
+                sendMessage(&msgResponse, false); // Send the message again
+                Serial.println("Resending neighbor response...");
               }
               else // Ack wait timer expired or neighbor rsp ack received
               {
@@ -1026,7 +1036,7 @@ void loop()
 
         uint8_t powerLevel = 0;
         // Broadcast query at all four power levels MIN, LOW, HIGH, MAX
-        for (uint8_t idx = 0; idx < 8; ++idx) // 5 is total number of edge costs
+        for (uint8_t idx = 0; idx < 7; ++idx) // 5 is total number of edge costs
         {
           if ((idx % 2) == 0)
           {
@@ -1043,7 +1053,10 @@ void loop()
 
           // Broadcast neighbor query message with size of header
           sendMessage(&msgResponse, false);
-          delay(500);
+          if (idx != 6)
+          {
+            delay(500);
+          }
         } // End of broadcasting NEIGHBOR_QUERY at different power levels
 
 #ifdef SERIAL_DEBUG
@@ -1224,6 +1237,13 @@ void loop()
 
                     // Save node id of last ack
                     nQuerySenderId = getNodeIdFromHeader(msgReceived.header);
+                    // If the message ID is not a n rsp ack, throw it away
+                    if (getMessageIdFromHeader(msgReceived.header) != NEIGHBOR_RSP_ACK)
+                    {
+                      nQuerySenderId = 0;
+                      continue;
+                    }
+                    
                     if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
                     {
 

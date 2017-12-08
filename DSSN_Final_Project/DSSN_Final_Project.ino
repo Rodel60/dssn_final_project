@@ -742,6 +742,12 @@ void loop()
 
                     // Save node id of last ack
                     nQuerySenderId = getNodeIdFromHeader(msgReceived.header);
+                    // If the message ID is not a n rsp ack, throw it away
+                    if (getMessageIdFromHeader(msgReceived.header) != NEIGHBOR_RSP_ACK)
+                    {
+                      nQuerySenderId = 0;
+                      continue;
+                    }
                     if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
                     {
 
@@ -766,10 +772,14 @@ void loop()
                       startTimer1 = millis();
 #ifdef SERIAL_DEBUG
                       Serial.println("WARNING: This node's ID does not match the ack's intended node ID!");
+                      Serial.println("Resending neighbor response...");
 #endif
                     }
                   }
                 } // End ack received
+
+                sendMessage(&msgResponse); // Send the message again
+                Serial.println("Resending neighbor response...");
               }
               else // Ack wait timer expired or neighbor rsp ack received
               {
@@ -1002,6 +1012,12 @@ void loop()
 
                     // Save node id of last ack
                     nQuerySenderId = getNodeIdFromHeader(msgReceived.header);
+                    // If the message ID is not a n rsp ack, throw it away
+                    if (getMessageIdFromHeader(msgReceived.header) != NEIGHBOR_RSP_ACK)
+                    {
+                      nQuerySenderId = 0;
+                      continue;
+                    }
                     if (getNodeIdFromHeader(msgReceived.header) != receivedMsgNodeId)
                     {
 
@@ -1026,10 +1042,14 @@ void loop()
                       startTimer1 = millis();
 #ifdef SERIAL_DEBUG
                       Serial.println("WARNING: This node's ID does not match the ack's intended node ID!");
+                      Serial.println("Resending neighbor response...");
 #endif
                     }
                   }
                 } // End ack received
+
+                sendMessage(&msgResponse); // Send the message again
+                Serial.println("Resending neighbor response...");
               }
               else // Ack wait timer expired or neighbor rsp ack received
               {
