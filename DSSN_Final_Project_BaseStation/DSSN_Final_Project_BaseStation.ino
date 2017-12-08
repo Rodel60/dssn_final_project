@@ -289,7 +289,9 @@ bool readMessage(message_S* currMessage) // TODO Read bytes from the radio over 
     {
       if (radio.getDynamicPayloadSize() < 1)
       {
+#ifdef SERIAL_DEBUG
         Serial.println("Corrupt payload data has been flushed");
+#endif
         return false;
       }
       radio.read(&payloadDataBuffer, sizeof(payloadDataBuffer));
@@ -528,7 +530,7 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
         transmitBuffer[1] = ',';
         transmitBuffer[2] = (dRspPayload->node_path[0] + '0');
         transmitBuffer[3] = ',';
-        transmitBuffer[4] = dRspPayload->data; // Data
+        transmitBuffer[4] = (dRspPayload->data + '0'); // Data
         transmitBuffer[5] = '\n';
         break;
 
@@ -760,12 +762,6 @@ void loop()
   uint32_t listenTimer = 80;
   static bool correctNeighRspReceived = false;
 
-
-  while (1)
-  {
-    Serial.print("Data: ");
-    Serial.println(analogRead(A1));
-  }
   // Read in current message in the Serial buffer
   if (Serial.available())
   {
