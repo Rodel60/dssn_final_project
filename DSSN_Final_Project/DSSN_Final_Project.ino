@@ -718,7 +718,7 @@ void loop()
 
             uint32_t startTimer2 = millis();
             // WAIT FOR NEIGHBOR RESPONSE ACK
-            while (((uint32_t)(millis() - startTimer2)) > ackTimer)
+            while (((uint32_t)(millis() - startTimer2)) < ackTimer)
             {
               // RANDOM BACKOFF BEFORE NEIGHBOR RESPONSE
               uint8_t randTime = random(250); // Wait a random amount of time 0-.25sec
@@ -730,7 +730,7 @@ void loop()
 
               nQuerySenderId = 0;
               uint32_t startTimer1 = millis();
-              while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) > listenTimer))
+              while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
               {
                 // (Re)send NEIGHBOR_RESPONSE message randomly until ACK
                 if (radio.available()) // Ack was received
@@ -983,7 +983,7 @@ void loop()
 #endif
             uint32_t startTimer2 = millis();
             // WAIT FOR NEIGHBOR RESPONSE ACK
-            while (((uint32_t)(millis() - startTimer2)) > ackTimer)
+            while (((uint32_t)(millis() - startTimer2)) < ackTimer)
             {
               // RANDOM BACKOFF BEFORE NEIGHBOR RESPONSE
               uint8_t randTime = random(250); // Wait a random amount of time 0-.25sec
@@ -992,9 +992,10 @@ void loop()
               // Transmit the neighbor response
               sendMessage(&msgResponse);
               Serial.println("Sending neighbor response...");
+              
               nQuerySenderId = 0;
               uint32_t startTimer1 = millis();
-              while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) > listenTimer))
+              while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
               {
                 // (Re)send NEIGHBOR_RESPONSE message randomly until ACK
                 if (radio.available()) // Ack was received
