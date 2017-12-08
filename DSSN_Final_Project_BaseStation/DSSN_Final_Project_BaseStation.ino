@@ -491,7 +491,7 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
     startup_rsp_payload_S* sRspPayload;
     data_rsp_payload_S* dRspPayload;
     error_msg_payload_S* errorMsgPayload;
-
+    memset(&transmitBuffer,0,64);
     switch (getMessageIdFromHeader(msgToSend->header))
     {
       case STARTUP_RSP:
@@ -540,6 +540,7 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
         transmitBuffer[1] = ',';
         transmitBuffer[2] = (errorMsgPayload->unreachable_node + '0');
         transmitBuffer[3] = '\n';
+        break;
 
       default:
       #ifdef SERIAL_DEBUG
