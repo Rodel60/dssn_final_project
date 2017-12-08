@@ -23,7 +23,7 @@ RF24 radio(8, 7);
 // Unique node identifier
 // NOTE: Start incrementing the node id from 1, so 0 represents no node
 // Worker nodes numbered 1 to 7
-#define NODE_ID 5
+#define NODE_ID 6
 
 // Maximum number of nodes in a message path
 #define MAX_NODE_PATH 9
@@ -105,7 +105,7 @@ typedef struct __attribute__((__packed__))
   uint8_t edge_costs[MAX_NUM_NEIGHBORS];
 } startup_rsp_payload_S;
 
-// DATA_QUERY Payload
+// DATA_QUERY Payloa
 typedef struct __attribute__((__packed__))
 {
   uint8_t target_node;
