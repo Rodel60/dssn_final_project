@@ -251,6 +251,14 @@ uint8_t getPayloadSize(message_id_E msgType)
       numPayloadBytes = sizeof(startup_rsp_payload_S);
       break;
 
+    case DATA_QUERY:
+      numPayloadBytes = sizeof(data_query_payload_S);
+      break;
+
+    case DATA_RSP:
+      numPayloadBytes = sizeof(data_rsp_payload_S);
+      break;    
+
     case ERROR_MSG:
       numPayloadBytes = sizeof(error_msg_payload_S);
       break;
@@ -370,12 +378,32 @@ static void debugMessage(message_S * msgToDebug)
 
     case DATA_QUERY:
       Serial.println(F("DATA_QUERY"));
-      // TODO Add func as needed debugMsgPayloads.dataQueryPayload
+      Serial.print(F("target_node = "));
+      Serial.println(debugMsgPayloads.dataQueryPayload.target_node, DEC);
+      Serial.print(F("node_path = ["));
+      for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
+      {
+        Serial.print(debugMsgPayloads.dataQueryPayload.node_path[idx], DEC);
+        ((idx == MAX_NODE_PATH - 1) ? Serial.print(F("]\n\r")) : Serial.print(F(", ")));
+      }
+
+      Serial.print(F("request = "));
+      Serial.println(debugMsgPayloads.dataQueryPayload.request);
       break;
 
     case DATA_RSP:
       Serial.println(F("DATA_RSP"));
-      // TODO Add func as needed debugMsgPayloads.dataRspPayload
+      Serial.print(F("target_node = "));
+      Serial.println(debugMsgPayloads.dataRspPayload.target_node, DEC);
+      Serial.print(F("node_path = ["));
+      for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
+      {
+        Serial.print(debugMsgPayloads.dataRspPayload.node_path[idx], DEC);
+        ((idx == MAX_NODE_PATH - 1) ? Serial.print(F("]\n\r")) : Serial.print(F(", ")));
+      }
+
+      Serial.print(F("data = "));
+      Serial.println(debugMsgPayloads.dataRspPayload.data);
       break;
 
     case ERROR_MSG:
@@ -512,7 +540,10 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
         transmitBuffer[3] = '\n';
 
       default:
+      #ifdef SERIAL_DEBUG
         // Error case
+        Serial.println(F("ERROR: Something went wrong while transmitting to MATLAB!"));
+      #endif
         break;
     }
     // Send the message with the appropriate number of bytes
@@ -520,12 +551,6 @@ void sendMessage(message_S * msgToSend, bool sendToMatlab)
   }
   else
   {
-    //    Serial.print("Sending... ");
-    //    Serial.println((sizeof(uint8_t) + numBytesInPayload));
-    //    uint8_t msg[3] = {128,2,3};
-    //    debugMessage(msgToSend);
-    //    Serial.print("\n");
-
     // Buffer the outgoing data
     memcpy((uint8_t*) & (nodeTransmitBuffer[0]), (uint8_t*) & (msgToSend->header), sizeof(uint8_t));
     memcpy((uint8_t*) & (nodeTransmitBuffer[1]), (uint8_t*)msgToSend->payload, numBytesInPayload);
@@ -734,7 +759,13 @@ void loop()
   uint32_t ackTimer = 2000;
   uint32_t listenTimer = 80;
   static bool correctNeighRspReceived = false;
-            
+
+
+  while (1)
+  {
+    Serial.print("Data: ");
+    Serial.println(analogRead(A1));
+  }
   // Read in current message in the Serial buffer
   if (Serial.available())
   {
@@ -787,10 +818,16 @@ void loop()
           {
             msgOutgoingPayloads.dataQueryPayload.node_path[idx] = receiveBuffer[idx + 4] - '0';
           }
-
+          
+          // 3[0],5[2],985000000,1[14]
+          
           // Set the outgoing message payload equal to the incoming message payload
           msgOutgoingPayloads.dataQueryPayload.request = receiveBuffer[14] - '0';
-
+          
+#ifdef SERIAL_DEBUG
+        Serial.print(F("Forwarding DATA_QUERY request number "));
+        Serial.println(receiveBuffer[14] - '0');
+#endif
           // Increment the target node index to the next node
           msgOutgoingPayloads.dataQueryPayload.target_node = 2; // MATLAB = 9, base node = 8
 
@@ -1385,7 +1422,7 @@ void loop()
             // Parse the payload into the incoming payloads union structure
             parsePayload(&currentMessage, &msgIncomingPayloads);
 #ifdef SERIAL_DEBUG
-            Serial.print("GForwarding message to node ");
+            Serial.print("DR_Forwarding message to node ");
             Serial.println(msgIncomingPayloads.dataRspPayload.node_path[msgIncomingPayloads.dataRspPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id
@@ -1434,7 +1471,7 @@ void loop()
 
 #ifdef SERIAL_DEBUG
             debugMessage(&currentMessage);
-            Serial.print("LForwarding message to node ");
+            Serial.print("S_Forwarding message to node ");
             Serial.println(msgIncomingPayloads.startupMsgPayload.node_path[msgIncomingPayloads.startupMsgPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id
@@ -1478,7 +1515,7 @@ void loop()
             parsePayload(&currentMessage, &msgIncomingPayloads);
 
 #ifdef SERIAL_DEBUG
-            Serial.print("HForwarding message to node ");
+            Serial.print("SR_Forwarding message to node ");
             Serial.println(msgIncomingPayloads.startupRspPayload.node_path[msgIncomingPayloads.startupRspPayload.target_node + 1], DEC);
 #endif
             // Check that the next hop node has a valid id

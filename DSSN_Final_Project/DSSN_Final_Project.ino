@@ -249,6 +249,14 @@ uint8_t getPayloadSize(message_id_E msgType)
       numPayloadBytes = sizeof(startup_rsp_payload_S);
       break;
 
+    case DATA_QUERY:
+      numPayloadBytes = sizeof(data_query_payload_S);
+      break;
+
+    case DATA_RSP:
+      numPayloadBytes = sizeof(data_rsp_payload_S);
+      break;
+
     case ERROR_MSG:
       numPayloadBytes = sizeof(error_msg_payload_S);
       break;
@@ -303,7 +311,7 @@ bool readMessage(message_S* currMessage) // TODO Read bytes from the radio over 
 }
 
 // Debug function to display message contents
-static void debugMessage(message_S* msgToDebug)
+static void debugMessage(message_S * msgToDebug)
 {
 #ifdef SERIAL_DEBUG
   MsgPayload debugMsgPayloads;
@@ -326,28 +334,28 @@ static void debugMessage(message_S* msgToDebug)
       break;
 
     case NEIGHBOR_RSP:
-      Serial.println("NEIGHBOR_RSP");
-      Serial.print("querying_node_id = ");
+      Serial.println(F("NEIGHBOR_RSP"));
+      Serial.print(F("querying_node_id = "));
       Serial.println(debugMsgPayloads.nRspPayload.querying_node_id, DEC);
-      Serial.print("received_power = ");
+      Serial.print(F("received_power = "));
       Serial.println(debugMsgPayloads.nRspPayload.received_power, DEC);
       break;
 
     case NEIGHBOR_RSP_ACK:
-      Serial.println("NEIGHBOR_RSP_ACK");
-      Serial.print("node_acknowledged = ");
+      Serial.println(F("NEIGHBOR_RSP_ACK"));
+      Serial.print(F("node_acknowledged = "));
       Serial.println(debugMsgPayloads.nRspPayloadAck.node_acknowledged, DEC);
       break;
 
     case STARTUP_MSG:
-      Serial.println("STARTUP_MSG");
-      Serial.print("target_node = ");
+      Serial.println(F("STARTUP_MSG"));
+      Serial.print(F("target_node = "));
       Serial.println(debugMsgPayloads.startupMsgPayload.target_node, DEC);
-      Serial.print("node_path = [");
+      Serial.print(F("node_path = ["));
       for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
       {
         Serial.print(debugMsgPayloads.startupMsgPayload.node_path[idx], DEC);
-        ((idx == MAX_NODE_PATH - 1) ? Serial.print("]\n\r") : Serial.print(", "));
+        ((idx == MAX_NODE_PATH - 1) ? Serial.print(F("]\n\r")) : Serial.print(F(", ")));
       }
       break;
 
@@ -359,28 +367,48 @@ static void debugMessage(message_S* msgToDebug)
       for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
       {
         Serial.print(debugMsgPayloads.startupRspPayload.node_path[idx], DEC);
-        ((idx == MAX_NODE_PATH - 1) ? Serial.print("]\n\r") : Serial.print(", "));
+        ((idx == MAX_NODE_PATH - 1) ? Serial.print(F("]\n\r")) : Serial.print(F(", ")));
       }
 
-      Serial.println("neighbor_list = (node_id,edge_cost) : ");
+      Serial.println(F("neighbor_list = (node_id,edge_cost) : "));
       for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
       {
         Serial.print(F("("));
         Serial.print(debugMsgPayloads.startupRspPayload.node_ids[idx], DEC);
         Serial.print(F(","));
         Serial.print(debugMsgPayloads.startupRspPayload.edge_costs[idx], DEC);
-        ((idx == MAX_NODE_PATH - 1) ? Serial.println(")") : Serial.print(")"));
+        ((idx == MAX_NODE_PATH - 1) ? Serial.println(F(")")) : Serial.print(F(")")));
       }
       break;
 
     case DATA_QUERY:
       Serial.println(F("DATA_QUERY"));
-      // TODO Add func as needed debugMsgPayloads.dataQueryPayload
+      Serial.print(F("target_node = "));
+      Serial.println(debugMsgPayloads.dataQueryPayload.target_node, DEC);
+      Serial.print(F("node_path = ["));
+      for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
+      {
+        Serial.print(debugMsgPayloads.dataQueryPayload.node_path[idx], DEC);
+        ((idx == MAX_NODE_PATH - 1) ? Serial.print(F("]\n\r")) : Serial.print(F(", ")));
+      }
+
+      Serial.print(F("request = "));
+      Serial.println(debugMsgPayloads.dataQueryPayload.request);
       break;
 
     case DATA_RSP:
       Serial.println(F("DATA_RSP"));
-      // TODO Add func as needed debugMsgPayloads.dataRspPayload
+      Serial.print(F("target_node = "));
+      Serial.println(debugMsgPayloads.dataRspPayload.target_node, DEC);
+      Serial.print(F("node_path = ["));
+      for (uint8_t idx = 0; idx < MAX_NODE_PATH; ++idx)
+      {
+        Serial.print(debugMsgPayloads.dataRspPayload.node_path[idx], DEC);
+        ((idx == MAX_NODE_PATH - 1) ? Serial.print(F("]\n\r")) : Serial.print(F(", ")));
+      }
+
+      Serial.print(F("data = "));
+      Serial.println(debugMsgPayloads.dataRspPayload.data);
       break;
 
     case ERROR_MSG:
@@ -819,7 +847,7 @@ void loop()
 
               // Store the reversed node path for when we need to send the startup response
               reverseNodeList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload.node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
-              fixList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload.node_path));
+              fixList((uint8_t*) & (msgIncomingPayloads.startupMsgPayload.node_path)); // TODO Do we even need to do this here?? It's done before the list is used in the return messsage
 
               // This node is the end of the node path
               currentState = STARTUP_MODE;
@@ -1100,7 +1128,7 @@ void loop()
 #endif
               // Store the reversed node path for when we need to send the startup response
               reverseNodeList((uint8_t*) & (msgIncomingPayloads.dataQueryPayload.node_path), (uint8_t*)&lastMsgReversedNodePath, MAX_NODE_PATH);
-              fixList((uint8_t*) & (msgIncomingPayloads.dataQueryPayload.node_path));
+              fixList((uint8_t*) & (msgIncomingPayloads.dataQueryPayload.node_path)); // TODO Necessary???
 
               // TODO Process the request
               if (msgIncomingPayloads.dataQueryPayload.request == 1)
@@ -1113,6 +1141,7 @@ void loop()
 
                 msgOutgoingPayloads.dataRspPayload.data = 104; // TODO Fetch actual data
 
+                fixList((uint8_t*) & (lastMsgReversedNodePath));
                 // Buidling payload: Save the reversed copy of the node_path that the original startup message contained
                 memcpy(&(msgOutgoingPayloads.dataRspPayload.node_path), &lastMsgReversedNodePath, MAX_NODE_PATH);
 
