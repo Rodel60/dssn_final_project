@@ -553,22 +553,31 @@ void parsePayload(message_S* receivedMsg, MsgPayload* receivedMsgPayloads)
 // Helper function to reverse the node list
 void reverseNodeList(uint8_t* origNodeList, uint8_t* reversedNodeList, uint8_t listSize)
 {
+  reversedNodeList[0] = origNodeList[8];
+  reversedNodeList[1] = origNodeList[7];
+  reversedNodeList[2] = origNodeList[6];
+  reversedNodeList[3] = origNodeList[5];
+  reversedNodeList[4] = origNodeList[4];
+  reversedNodeList[5] = origNodeList[3];
+  reversedNodeList[6] = origNodeList[2];
+  reversedNodeList[7] = origNodeList[1];
+  reversedNodeList[8] = origNodeList[0];
   // Grab the end of the list
-  uint8_t* tailPtr = (origNodeList + listSize - 1);
-
-  // Write the end of the list into the front of the list
-  for (uint8_t i = 0; i < listSize; ++i)
-  {
-    // Ensure that zero padding is only at the end
-    if (*(tailPtr - i) == 0)
-    {
-      *(reversedNodeList + (listSize - i - 1)) = 0;
-    }
-    else
-    {
-      *(reversedNodeList + i) = *(tailPtr - i);
-    }
-  }
+//  uint8_t* tailPtr = (origNodeList + listSize - 1);
+//
+//  // Write the end of the list into the front of the list
+//  for (uint8_t i = 0; i < listSize; ++i)
+//  {
+//    // Ensure that zero padding is only at the end
+//    if (*(tailPtr - i) == 0)
+//    {
+//      *(reversedNodeList + (listSize - i - 1)) = 0;
+//    }
+//    else
+//    {
+//      *(reversedNodeList + i) = *(tailPtr - i);
+//    }
+//  }
 }
 
 // Helper function to check if a node destination is in the list
@@ -646,11 +655,6 @@ void loop()
   static bool receivedNeighborQuery = false;
   uint8_t powerLevelToReachNode = 0;
   
-//  uint8_t outList[9] = {9,8,5,2,0,0,0,0,0};
-//  uint8_t 
-//  
-//reverseNodeList(uint8_t* origNodeList, uint8_t* reversedNodeList, uint8_t listSize)
-
   // This is the state machine for the node
   switch (currentState)
   {
