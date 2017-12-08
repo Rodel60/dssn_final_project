@@ -732,7 +732,7 @@ void loop()
   uint8_t lastCharRead = '0';
   static uint8_t nQuerySenderId = 0;
   uint32_t ackTimer = 2000;
-  uint32_t listenTimer = 50;
+  uint32_t listenTimer = 80;
   static bool correctNeighRspReceived = false;
             
   // Read in current message in the Serial buffer
@@ -933,6 +933,7 @@ void loop()
               sendMessage(&msgResponse, false);
 
               radio.setChannel(ACK_CHANNEL);
+              delay(10);
               nQuerySenderId = 0;
               uint32_t startTimer1 = millis();
               while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
@@ -973,6 +974,7 @@ void loop()
 #endif
                       correctNeighRspReceived = true;
                       radio.setChannel(MAIN_CHANNEL);
+                      delay(10);
                       break;
                     }
 
@@ -992,6 +994,7 @@ void loop()
                 } // End ack received              
               }
               radio.setChannel(MAIN_CHANNEL);
+              delay(10);
               if (correctNeighRspReceived)
               {
                 break;
@@ -1138,9 +1141,11 @@ void loop()
                 buildMessage(&msgAck, NODE_ID, NEIGHBOR_RSP_ACK, (uint8_t*) & (msgOutgoingPayloads.nRspPayloadAck));
 
                 radio.setChannel(ACK_CHANNEL);
+                delay(10);
                 // Write the message ack with size of header + payload
                 sendMessage(&msgAck, false);
                 radio.setChannel(MAIN_CHANNEL);
+                delay(10);
               }
             }
           }
@@ -1231,6 +1236,7 @@ void loop()
               sendMessage(&msgResponse, false);
               
               radio.setChannel(ACK_CHANNEL);
+              delay(10);
               nQuerySenderId = 0;
               uint32_t startTimer1 = millis();
               while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
@@ -1272,6 +1278,7 @@ void loop()
 #endif
                       correctNeighRspReceived = true;
                       radio.setChannel(MAIN_CHANNEL);
+                      delay(10);
                       break;
                     }
 
@@ -1291,6 +1298,7 @@ void loop()
                 } // End ack received              
               }
               radio.setChannel(MAIN_CHANNEL);
+              delay(10);
               if (correctNeighRspReceived)
               {
                 break;

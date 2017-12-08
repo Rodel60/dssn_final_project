@@ -731,6 +731,7 @@ void loop()
               Serial.println("Sending neighbor response...");
 
               radio.setChannel(ACK_CHANNEL);
+              delay(10);
               uint32_t startTimer1 = millis();
               while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
               {
@@ -771,6 +772,7 @@ void loop()
 #endif
                       correctNeighRspReceived = true;
                       radio.setChannel(MAIN_CHANNEL);
+                      delay(10);
                       break;
                     }
 
@@ -795,6 +797,7 @@ void loop()
                 }
               }
               radio.setChannel(MAIN_CHANNEL);
+              delay(10);
             }// END OF WAITING FOR ACK
           }
           // If the message is a startup message
@@ -917,9 +920,11 @@ void loop()
                 buildMessage(&msgAck, NODE_ID, NEIGHBOR_RSP_ACK, (uint8_t*) & (msgOutgoingPayloads.nRspPayloadAck));
 
                 radio.setChannel(ACK_CHANNEL);
+                delay(10);
                 // Write the message ack with size of header + payload
                 sendMessage(&msgAck);
                 radio.setChannel(MAIN_CHANNEL);
+                delay(10);
               }
             }
           }
@@ -1007,6 +1012,7 @@ void loop()
               Serial.println("Sending neighbor response...");
 
               radio.setChannel(ACK_CHANNEL);
+              delay(10);
               nQuerySenderId = 0;
               uint32_t startTimer1 = millis();
               while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
@@ -1048,6 +1054,7 @@ void loop()
 #endif
                       correctNeighRspReceived = true;
                       radio.setChannel(MAIN_CHANNEL);
+                      delay(10);
                       break;
                     }
 
@@ -1072,6 +1079,7 @@ void loop()
                 }
               }
               radio.setChannel(MAIN_CHANNEL);
+              delay(10);
             }// END OF WAITING FOR ACK
           }
           else if (messageType == DATA_QUERY)
