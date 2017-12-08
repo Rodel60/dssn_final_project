@@ -990,11 +990,12 @@ void loop()
                     }
                   }
                 } // End ack received
+                if (correctNeighRspReceived)
+                {
+                  break;
+                }
               }
-              if (correctNeighRspReceived)
-              {
-                break;
-              }
+              
             }// END OF WAITING FOR ACK
           }
           // If the message is a startup message
@@ -1284,11 +1285,12 @@ void loop()
                     }
                   }
                 } // End ack received
+                if (correctNeighRspReceived)
+                {
+                  break;
+                }
               }
-              if (correctNeighRspReceived)
-              {
-                break;
-              }
+              
             }// END OF WAITING FOR ACK
           }
           else if (messageType == DATA_QUERY)

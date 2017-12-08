@@ -787,10 +787,10 @@ void loop()
                     }
                   }
                 } // End ack received
-              }
-              if (correctNeighRspReceived)
-              {
-                break;
+                if (correctNeighRspReceived)
+                {
+                  break;
+                }
               }
             }// END OF WAITING FOR ACK
           }
@@ -1059,10 +1059,10 @@ void loop()
                     }
                   }
                 } // End ack received
-              }
-              if (correctNeighRspReceived)
-              {
-                break;
+                if (correctNeighRspReceived)
+                {
+                  break;
+                }
               }
             }// END OF WAITING FOR ACK
           }
