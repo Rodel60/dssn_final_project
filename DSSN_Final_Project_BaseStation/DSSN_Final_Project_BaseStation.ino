@@ -733,6 +733,7 @@ void loop()
   static uint8_t nQuerySenderId = 0;
   uint32_t ackTimer = 2000;
   uint32_t listenTimer = 50;
+  static bool correctNeighRspReceived = false;
             
   // Read in current message in the Serial buffer
   if (Serial.available())
@@ -920,7 +921,7 @@ void loop()
 #endif
 
             
-            
+            correctNeighRspReceived = false;
             uint32_t startTimer2 = millis();
             // WAIT FOR NEIGHBOR RESPONSE ACK
             while (((uint32_t)(millis() - startTimer2)) < ackTimer) // Wait for 2 seconds
@@ -970,6 +971,8 @@ void loop()
                     {
 #ifdef SERIAL_DEBUG
                       Serial.println("Correct NEIGHBOR_RSP_ACK received");
+                      correctNeighRspReceived = true;
+                      break;
 #endif
                     }
 
@@ -987,6 +990,10 @@ void loop()
                     }
                   }
                 } // End ack received
+              }
+              if (correctNeighRspReceived)
+              {
+                break;
               }
             }// END OF WAITING FOR ACK
           }
@@ -1208,6 +1215,7 @@ void loop()
 #ifdef SERIAL_DEBUG
             Serial.println(F("Broadcasting intended message..."));
 #endif
+            correctNeighRspReceived = false;
             uint32_t startTimer2 = millis();
             // WAIT FOR NEIGHBOR RESPONSE ACK
             while (((uint32_t)(millis() - startTimer2)) < ackTimer)
@@ -1258,6 +1266,8 @@ void loop()
 #ifdef SERIAL_DEBUG
                       Serial.println("Correct NEIGHBOR_RSP_ACK received");
 #endif
+                      correctNeighRspReceived = true;
+                      break;
                     }
 
                     // Parse the payload into the incoming payloads union structure
@@ -1274,6 +1284,10 @@ void loop()
                     }
                   }
                 } // End ack received
+              }
+              if (correctNeighRspReceived)
+              {
+                break;
               }
             }// END OF WAITING FOR ACK
           }

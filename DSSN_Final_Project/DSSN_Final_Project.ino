@@ -658,6 +658,7 @@ void loop()
   static uint8_t nQuerySenderId = 0;
   uint32_t ackTimer = 2000;
   uint32_t listenTimer = 50;
+  static bool correctNeighRspReceived = false;
 
   // This is the state machine for the node
   switch (currentState)
@@ -715,7 +716,7 @@ void loop()
 #ifdef SERIAL_DEBUG
             Serial.println(F("Broadcasting intended message..."));
 #endif
-
+            correctNeighRspReceived = false;
             uint32_t startTimer2 = millis();
             // WAIT FOR NEIGHBOR RESPONSE ACK
             while (((uint32_t)(millis() - startTimer2)) < ackTimer)
@@ -767,6 +768,8 @@ void loop()
 #ifdef SERIAL_DEBUG
                       Serial.println("Correct NEIGHBOR_RSP_ACK received");
 #endif
+                      correctNeighRspReceived = true;
+                      break;
                     }
 
                     // Parse the payload into the incoming payloads union structure
@@ -784,6 +787,10 @@ void loop()
                     }
                   }
                 } // End ack received
+              }
+              if (correctNeighRspReceived)
+              {
+                break;
               }
             }// END OF WAITING FOR ACK
           }
@@ -981,6 +988,7 @@ void loop()
 #ifdef SERIAL_DEBUG
             Serial.println(F("Broadcasting intended message..."));
 #endif
+            correctNeighRspReceived = false;
             uint32_t startTimer2 = millis();
             // WAIT FOR NEIGHBOR RESPONSE ACK
             while (((uint32_t)(millis() - startTimer2)) < ackTimer)
@@ -992,7 +1000,7 @@ void loop()
               // Transmit the neighbor response
               sendMessage(&msgResponse);
               Serial.println("Sending neighbor response...");
-              
+
               nQuerySenderId = 0;
               uint32_t startTimer1 = millis();
               while ((nQuerySenderId != receivedMsgNodeId) && (((uint32_t)(millis() - startTimer1)) < listenTimer))
@@ -1032,6 +1040,8 @@ void loop()
 #ifdef SERIAL_DEBUG
                       Serial.println("Correct NEIGHBOR_RSP_ACK received");
 #endif
+                      correctNeighRspReceived = true;
+                      break;
                     }
 
                     // Parse the payload into the incoming payloads union structure
@@ -1049,6 +1059,10 @@ void loop()
                     }
                   }
                 } // End ack received
+              }
+              if (correctNeighRspReceived)
+              {
+                break;
               }
             }// END OF WAITING FOR ACK
           }
